@@ -5,4 +5,3 @@ dist/
 *.log
 .qwen/
 .astro/
-data/daily/
