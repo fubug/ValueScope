@@ -1,0 +1,106 @@
+---
+import Dashboard from '../../layouts/Dashboard.astro';
+import TrendChart from '../../components/TrendChart';
+import RadarChart from '../../components/RadarChart';
+import { getMarketDetail, getMarketTrend, getDateRange } from '../../lib/data';
+import { getMarketMeta, getAllMarketIds } from '../../lib/markets';
+
+export function getStaticPaths() {
+  return getAllMarketIds().map((id) => ({ params: { id } }));
+}
+
+const { id } = Astro.params;
+const meta = getMarketMeta(id as any);
+const detail = getMarketDetail(id as string);
+const trend = getMarketTrend(id as string, 'ALL');
+const dateRange = getDateRange();
+
+if (!meta || !detail) {
+  return Astro.redirect('/ValueScope/');
+}
+
+const DIM_LABELS: Record<string, string> = {
+  profit_effect: '赚钱效应',
+  valuation: '估值性价比',
+  scale_liquidity: '规模流动性',
+  fundamentals: '经济基本面',
+  institutional: '制度可进入性',
+  risk_penalty: '风险惩罚',
+};
+---
+
+<Dashboard title={`${meta.name} ${detail.index_name}`}>
+  <div class="page-header">
+    <div>
+      <h1>{meta.flag} {meta.name} — {detail.index_name}</h1>
+      <div class="date-notice">数据更新于 {dateRange?.latest}</div>
+    </div>
+    <div class="big-score">
+      <span class="score-number">{detail.fish_score}</span>
+      <span class="score-label">条鱼</span>
+    </div>
+  </div>
+
+  <div class="detail-grid">
+    <div class="card chart-card">
+      <div class="section-title">鱼情趋势</div>
+      {trend.length > 0
+        ? <TrendChart client:load data={trend} />
+        : <div class="no-data">暂无历史数据</div>
+      }
+      {trend.length > 0 && trend.length < 30 && (
+        <div class="limited-notice">数据不足30天，趋势仅供参考</div>
+      )}
+    </div>
+
+    <div class="card">
+      <div class="section-title">六维评分</div>
+      <RadarChart client:load dimensions={detail.dimensions} />
+      <table class="dim-table">
+        <thead>
+          <tr>
+            <th>维度</th>
+            <th>得分</th>
+            <th>权重</th>
+            <th>加权贡献</th>
+          </tr>
+        </thead>
+        <tbody>
+          {Object.entries(detail.dimensions).map(([key, dim]) => (
+            <tr>
+              <td>{DIM_LABELS[key] ?? key}</td>
+              <td>{(dim as any).score}</td>
+              <td>{((dim as any).weight * 100).toFixed(0)}%</td>
+              <td>{((dim as any).score * (dim as any).weight).toFixed(1)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</Dashboard>
+
+<style>
+  .page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+  .page-header h1 { font-size: 24px; font-weight: 700; }
+  .date-notice { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+  .big-score { text-align: right; }
+  .score-number { font-size: 48px; font-weight: 700; color: var(--accent); }
+  .score-label { display: block; font-size: 14px; color: var(--text-secondary); }
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .chart-card { min-height: 300px; }
+  .dim-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 12px; }
+  .dim-table th, .dim-table td { padding: 8px 6px; text-align: center; border-bottom: 1px solid var(--border); }
+  .dim-table th { color: var(--text-secondary); font-weight: 500; }
+  .no-data, .limited-notice { text-align: center; padding: 40px 0; color: var(--text-secondary); font-size: 14px; }
+  .limited-notice { padding: 8px; font-size: 12px; color: var(--orange); }
+  @media (max-width: 768px) {
+    .detail-grid { grid-template-columns: 1fr; }
+    .page-header { flex-direction: column; gap: 12px; }
+  }
+</style>

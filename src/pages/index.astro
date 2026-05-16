@@ -1,0 +1,42 @@
+---
+import Dashboard from '../layouts/Dashboard.astro';
+import FishRanking from '../components/FishRanking';
+import { getLatestReport } from '../lib/data';
+
+const report = getLatestReport();
+const markets = report ? [...report.markets].sort((a, b) => b.fish_score - a.fish_score) : [];
+const dataDate = report?.date ?? '';
+---
+
+<Dashboard title="全球鱼情排行">
+  <div class="page-header">
+    <h1>全球市场鱼情排行</h1>
+    {dataDate && <div class="date-notice">数据更新于 {dataDate}</div>}
+  </div>
+  {markets.length > 0
+    ? <FishRanking client:load markets={markets} />
+    : <div class="empty">暂无数据，等待 OpenClaw 推送</div>
+  }
+</Dashboard>
+
+<style>
+  .page-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .page-header h1 {
+    font-size: 24px;
+    font-weight: 700;
+  }
+  .date-notice {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-secondary);
+  }
+</style>
