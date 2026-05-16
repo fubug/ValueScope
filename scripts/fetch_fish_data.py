@@ -389,8 +389,28 @@ def main():
     print(f"✅ 写入 {out_path}", file=sys.stderr)
     print(json.dumps(report, ensure_ascii=False))
 
+    # 自动 git commit & push
+    if out_path.exists():
+        repo_dir = Path(__file__).resolve().parent.parent
+        import subprocess as sp
+        try:
+            sp.run(["git", "-C", str(repo_dir), "add", "data/daily/"], check=True, capture_output=True)
+            result = sp.run(["git", "-C", str(repo_dir), "commit", "-m",
+                           f"data: daily fish score {date}"], capture_output=True, text=True)
+            if "nothing to commit" in result.stdout or "nothing to commit" in result.stderr:
+                print(f"[INFO] 无新增数据，跳过推送", file=sys.stderr)
+            else:
+                sp.run(["git", "-C", str(repo_dir), "push", "origin", "main"], check=True, capture_output=True)
+                print(f"✅ 已推送到 main", file=sys.stderr)
+        except Exception as e:
+            print(f"[WARN] git操作失败: {e}", file=sys.stderr)
+
 def get_latest_trade_date():
     today = datetime.now()
+    # 凌晨执行时（<6点），回退到前一天（当天市场还没开盘）
+    if today.hour < 6:
+        today -= timedelta(days=1)
+    # 周末回退到周五
     if today.weekday() == 5: today -= timedelta(days=1)
     elif today.weekday() == 6: today -= timedelta(days=2)
     return today.strftime("%Y-%m-%d")
