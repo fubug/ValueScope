@@ -15,12 +15,11 @@ export type MarketId =
   | 'br';
 
 export type DimensionKey =
-  | 'profit_effect'
-  | 'valuation'
-  | 'scale_liquidity'
-  | 'fundamentals'
-  | 'institutional'
-  | 'risk_penalty';
+  | 'info_aggregation'
+  | 'transaction_cost'
+  | 'incentive_alignment'
+  | 'risk_dispersion'
+  | 'property_rights';
 
 export interface DimensionScore {
   score: number;
@@ -28,52 +27,39 @@ export interface DimensionScore {
 }
 
 export interface RawIndicators {
-  // profit_effect
-  cagr_5y?: number;
-  sharpe_3y?: number;
-  positive_year_ratio_10y?: number;
-  dividend_buyback_yield?: number;
-  drawdown_recovery_months?: number;
-  max_drawdown_10y?: number;
-  // valuation
-  pe_ttm?: number;
-  pe_percentile?: number;
-  pb_percentile?: number;
-  cape_shiller_pe?: number;
-  equity_risk_premium?: number;
-  bond_equity_yield_ratio?: number;
-  ev_ebitda?: number;
-  // scale_liquidity
-  free_float_market_cap_usd?: number;
-  daily_volume_usd?: number;
-  turnover_rate?: number;
+  // info_aggregation
+  analyst_coverage_depth?: number;
+  earnings_surprise_std?: number;
+  short_selling_allowed?: boolean;
+  price_impact_ratio?: number;
+  market_efficiency_index?: number;
+  // transaction_cost
+  total_commission_rate?: number;
   bid_ask_spread_bps?: number;
-  amihud_illiquidity?: number;
-  // fundamentals
-  gdp_growth_yoy?: number;
-  manufacturing_pmi?: number;
-  services_pmi?: number;
-  cpi_yoy?: number;
-  real_interest_rate?: number;
-  earnings_growth_yoy?: number;
-  credit_spread?: number;
-  unemployment_rate?: number;
-  // institutional
-  foreign_ownership_limit?: number;
-  capital_flow_freedom?: number;
-  etf_available?: boolean;
   settlement_days?: number;
   withholding_tax?: number;
+  capital_gains_tax?: number;
+  amihud_illiquidity?: number;
+  // incentive_alignment
+  shareholder_activism_score?: number;
+  board_independence_ratio?: number;
+  rpt_control_score?: number;
+  earnings_quality_score?: number;
+  insider_trading_enforcement?: number;
+  // risk_dispersion
+  derivatives_depth?: number;
+  options_available?: boolean;
+  capital_flow_freedom?: number;
+  foreign_ownership_limit?: number;
+  etf_variety?: number;
+  correlation_with_global?: number;
+  // property_rights
+  rule_of_law_index?: number;
+  judicial_independence?: number;
+  fraud_enforcement_rate?: number;
+  delisting_rate?: number;
   investor_protection_index?: number;
   accounting_standards?: number;
-  market_transparency?: number;
-  dual_listing_accessibility?: boolean;
-  // risk_penalty (max_drawdown_10y 共用 profit_effect 的定义)
-  currency_devaluation_5y?: number;
-  sovereign_cds_spread?: number;
-  correlation_with_us?: number;
-  geopolitical_risk_index?: number;
-  capital_control_risk?: number;
   // extensible
   [key: string]: number | boolean | undefined;
 }

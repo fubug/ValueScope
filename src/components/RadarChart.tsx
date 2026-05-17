@@ -7,12 +7,11 @@ interface Props {
 }
 
 const DIM_LABELS: Record<DimensionKey, string> = {
-  profit_effect: '赚钱效应',
-  valuation: '估值性价比',
-  scale_liquidity: '规模流动性',
-  fundamentals: '经济基本面',
-  institutional: '制度可进入性',
-  risk_penalty: '风险惩罚',
+  info_aggregation: '信息聚合',
+  transaction_cost: '交易成本',
+  incentive_alignment: '激励对齐',
+  risk_dispersion: '风险分散',
+  property_rights: '产权执行',
 };
 
 export default function RadarChart({ dimensions }: Props) {
