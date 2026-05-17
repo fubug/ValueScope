@@ -23,12 +23,12 @@ ValueScope 是纯静态展示站点，所有市场数据由 OpenClaw 每日采�
       "index_name": "KOSPI",
       "fish_score": 72,
       "dimensions": {
-        "profit_effect": { "score": 85, "weight": 0.30 },
+        "profit_effect": { "score": 85, "weight": 0.25 },
         "valuation": { "score": 70, "weight": 0.20 },
-        "scale_liquidity": { "score": 75, "weight": 0.15 },
+        "scale_liquidity": { "score": 75, "weight": 0.10 },
         "fundamentals": { "score": 68, "weight": 0.15 },
-        "institutional": { "score": 60, "weight": 0.10 },
-        "risk_penalty": { "score": 30, "weight": 0.10 }
+        "institutional": { "score": 60, "weight": 0.15 },
+        "risk_penalty": { "score": 30, "weight": 0.15 }
       },
       "raw_indicators": {
         "cagr_5y": 0.082,
@@ -98,23 +98,23 @@ ValueScope 是纯静态展示站点，所有市场数据由 OpenClaw 每日采�
 
 | 维度 | 字段名 | 固定权重 | 说明 |
 |------|--------|---------|------|
-| 赚钱效应 | `profit_effect` | 0.30 | 市场是否长期奖励持有者 |
+| 赚钱效应 | `profit_effect` | 0.25 | 市场是否长期奖励持有者 |
 | 估值性价比 | `valuation` | 0.20 | 当前估值在历史中的便宜程度 |
-| 规模流动性 | `scale_liquidity` | 0.15 | 市场容量和交易活跃度 |
 | 经济基本面 | `fundamentals` | 0.15 | 宏观经济和企业盈利支撑 |
-| 制度可进入性 | `institutional` | 0.10 | 外资买入的便利程度 |
-| 风险惩罚 | `risk_penalty` | 0.10 | 当前风险水平（越高越危险） |
+| 制度可进入性 | `institutional` | 0.15 | 制度是否保护投资者、市场是否友好 |
+| 风险惩罚 | `risk_penalty` | 0.15 | 结构性风险（汇率/主权/地缘/资本管制） |
+| 规模流动性 | `scale_liquidity` | 0.10 | 交易成本和市场容量 |
 
 ### fish_score 计算规则
 
 ```
 fish_score = round(
-  profit_effect.score     × 0.30
+  profit_effect.score     × 0.25
 + valuation.score         × 0.20
-+ scale_liquidity.score   × 0.15
 + fundamentals.score      × 0.15
-+ institutional.score     × 0.10
-+ risk_penalty.score      × 0.10
++ institutional.score     × 0.15
++ risk_penalty.score      × 0.15
++ scale_liquidity.score   × 0.10
 )
 ```
 
@@ -126,20 +126,54 @@ fish_score = round(
 
 以下详细说明每个维度需要采集哪些原始指标、从哪里获取、以及如何将原始数据换算为 0-100 的维度评分。
 
-### 维度一：赚钱效应 `profit_effect`（权重 30%）
+### 获取类型说明
+
+每个指标标注了**获取类型**，共两类：
+
+| 获取类型 | 含义 | 示例 |
+|---------|------|------|
+| **API可取** | 可通过 yfinance / AKShare / FRED 等接口直接获取原始数据 | PE_TTM、成交量、汇率 |
+| **API可算** | 基于API获取的数据进行二次计算即可得出 | CAGR、夏普比率、波动率、相关系数、分位数 |
+| **搜索整理** | 无现成API，需要通过网络搜索、查找官方报告、人工整理 | 投资者保护指数、会计准则评级、地缘风险指数、回购收益率 |
+
+**重点说明**：标注为"搜索整理"的指标没有标准化的数据接口，OpenClaw 需要通过搜索各国统计局、央行、世界银行、IMF、MSCI、S&P 等权威来源来获取。这类指标变化缓慢（制度/评级类通常季度或年度更新），不需要每日搜索，建议**缓存上次结果，按频率定期刷新**。
+
+### 指标获取类型汇总
+
+| 获取类型 | 指标数 | 占比 |
+|---------|--------|------|
+| API可取/可算 | 20 | 50% |
+| 搜索整理 | 20 | 50% |
+
+**搜索整理类指标清单**（无现成API，需搜索获取）：
+- `dividend_buyback_yield` — 回购数据需搜索整理
+- `cape_shiller_pe` — 部分市场有现成数据（如 multpl.com 提供美股），其余需计算
+- `ev_ebitda` — 需从 Bloomberg 或财经网站获取
+- `free_float_market_cap_usd` — 需查交易所或指数提供商
+- `bid_ask_spread_bps` — 需从做市商数据或交易所统计获取
+- `manufacturing_pmi` / `services_pmi` — 各国统计局官网
+- `earnings_growth_yoy` — 指数EPS数据需从财经数据商获取
+- `credit_spread` — FRED有美国数据，其他国家需搜索
+- `unemployment_rate` — 各国统计局官网
+- **制度维度全部 9 个指标** — 均需搜索各国法规、世界银行/IMF数据库
+- `sovereign_cds_spread` — 需从 Bloomberg 或金融数据商获取
+- `geopolitical_risk_index` — 需搜索 GPR Index 或定性评估
+- `capital_control_risk` — 需搜索 IMF AREAER 数据库
+
+### 维度一：赚钱效应 `profit_effect`（权重 25%）
 
 **含义**：市场是否长期奖励持有者——是不是一个正和游戏。基于第一性原理，关注长期奖惩机制，而非短期涨跌。
 
 **必须采集的指标**：
 
-| raw_indicators 字段 | 含义 | 单位 | 获取方式 |
-|---------------------|------|------|---------|
-| `cagr_5y` | 5年年化复合收益率 | 小数 | (当前价/5年前价)^(1/5) - 1 |
-| `sharpe_3y` | 3年夏普比率 | 比值 | (年化收益 - 无风险利率) / 年化波动率 |
-| `positive_year_ratio_10y` | 过去10年正收益年份占比 | 0-1 | 统计10个年度收益中正数占比 |
-| `dividend_buyback_yield` | 股息+回购收益率(TTM) | 小数 | (分红+回购) / 总市值 |
-| `drawdown_recovery_months` | 最近一次≥15%回撤的恢复月数 | 月 | 从回撤低点回到前高的月数 |
-| `max_drawdown_10y` | 近10年最大回撤 | 小数（负数） | 10年内最高点到最低点的跌幅 |
+| raw_indicators 字段 | 含义 | 单位 | 获取方式 | 获取类型 |
+|---------------------|------|------|---------|---------|
+| `cagr_5y` | 5年年化复合收益率 | 小数 | (当前价/5年前价)^(1/5) - 1 | API可算 |
+| `sharpe_3y` | 3年夏普比率 | 比值 | (年化收益 - 无风险利率) / 年化波动率 | API可算 |
+| `positive_year_ratio_10y` | 过去10年正收益年份占比 | 0-1 | 统计10个年度收益中正数占比 | API可算 |
+| `dividend_buyback_yield` | 股息+回购收益率(TTM) | 小数 | (分红+回购) / 总市值 | 搜索整理 |
+| `drawdown_recovery_months` | 最近一次≥15%回撤的恢复月数 | 月 | 从回撤低点回到前高的月数 | API可算 |
+| `max_drawdown_10y` | 近10年最大回撤 | 小数（负数） | 10年内最高点到最低点的跌幅 | API可算 |
 
 **评分公式**：
 
@@ -185,15 +219,15 @@ profit_effect.score = round(sub1 × 0.25 + sub2 × 0.20 + sub3 × 0.15 + sub4 ×
 
 **必须采集的指标**：
 
-| raw_indicators 字段 | 含义 | 单位 | 获取方式 |
-|---------------------|------|------|---------|
-| `pe_ttm` | 滚动市盈率 (TTM) | 倍 | 指数PE-TTM |
-| `pe_percentile` | PE在近10年中的分位 | 0-1 | PE_TTM vs 近10年PE序列计算百分位 |
-| `pb_percentile` | PB在近10年中的分位 | 0-1 | PB vs 近10年PB序列计算百分位 |
-| `cape_shiller_pe` | 席勒周期调整PE（10年平均盈利） | 倍 | 指数价格 / 过去10年通胀调整后平均EPS |
-| `equity_risk_premium` | 股权风险溢价 (ERP) | 小数 | 1/PE_TTM - 10年期国债收益率 |
-| `bond_equity_yield_ratio` | 股债收益比 = 股息率 / 国债收益率 | 比值 | dividend_buyback_yield / 10Y国债收益率 |
-| `ev_ebitda` | EV/EBITDA（不受资本结构影响） | 倍 | 企业价值 / 息税折旧前利润 |
+| raw_indicators 字段 | 含义 | 单位 | 获取方式 | 获取类型 |
+|---------------------|------|------|---------|---------|
+| `pe_ttm` | 滚动市盈率 (TTM) | 倍 | 指数PE-TTM | API可取 |
+| `pe_percentile` | PE在近10年中的分位 | 0-1 | PE_TTM vs 近10年PE序列计算百分位 | API可算 |
+| `pb_percentile` | PB在近10年中的分位 | 0-1 | PB vs 近10年PB序列计算百分位 | API可算 |
+| `cape_shiller_pe` | 席勒周期调整PE（10年平均盈利） | 倍 | 指数价格 / 过去10年通胀调整后平均EPS | 搜索整理 |
+| `equity_risk_premium` | 股权风险溢价 (ERP) | 小数 | 1/PE_TTM - 10年期国债收益率 | API可算 |
+| `bond_equity_yield_ratio` | 股债收益比 = 股息率 / 国债收益率 | 比值 | dividend_buyback_yield / 10Y国债收益率 | API可算 |
+| `ev_ebitda` | EV/EBITDA（不受资本结构影响） | 倍 | 企业价值 / 息税折旧前利润 | 搜索整理 |
 
 **评分公式**：
 
@@ -219,19 +253,19 @@ valuation.score = round(sub1 × 0.20 + sub2 × 0.15 + sub3 × 0.20 + sub4 × 0.2
 
 ---
 
-### 维度三：规模流动性 `scale_liquidity`（权重 15%）
+### 维度三：规模流动性 `scale_liquidity`（权重 10%）
 
 **含义**：我的钱能不能顺利进去、顺利出来，且不影响价格。基于第一性原理，关注的是交易摩擦成本，而不仅仅是市场规模。
 
 **必须采集的指标**：
 
-| raw_indicators 字段 | 含义 | 单位 | 获取方式 |
-|---------------------|------|------|---------|
-| `free_float_market_cap_usd` | 自由流通市值（美元） | USD | 指数成分股自由流通市值汇总 |
-| `daily_volume_usd` | 日均成交额（美元），取近20日均值 | USD | 近20个交易日成交额均值 |
-| `turnover_rate` | 日换手率 | 小数 | 当日成交额 / 自由流通市值 |
-| `bid_ask_spread_bps` | 买卖价差（基点） | bps | (卖一 - 买一) / 中间价 × 10000 |
-| `amihud_illiquidity` | Amihud非流动性指标 | 小数 | 近20日均值(｜日收益率｜/ 成交额) |
+| raw_indicators 字段 | 含义 | 单位 | 获取方式 | 获取类型 |
+|---------------------|------|------|---------|---------|
+| `free_float_market_cap_usd` | 自由流通市值（美元） | USD | 指数成分股自由流通市值汇总 | 搜索整理 |
+| `daily_volume_usd` | 日均成交额（美元），取近20日均值 | USD | 近20个交易日成交额均值 | API可取 |
+| `turnover_rate` | 日换手率 | 小数 | 当日成交额 / 自由流通市值 | API可算 |
+| `bid_ask_spread_bps` | 买卖价差（基点） | bps | (卖一 - 买一) / 中间价 × 10000 | 搜索整理 |
+| `amihud_illiquidity` | Amihud非流动性指标 | 小数 | 近20日均值(｜日收益率｜/ 成交额) | API可算 |
 
 **评分公式**：
 
@@ -273,16 +307,16 @@ scale_liquidity.score = round(sub1 × 0.25 + sub2 × 0.20 + sub3 × 0.20 + sub4 
 
 **必须采集的指标**：
 
-| raw_indicators 字段 | 含义 | 单位 | 获取方式 |
-|---------------------|------|------|---------|
-| `gdp_growth_yoy` | GDP同比增速（最近季度） | 小数 | 各国统计局 / FRED |
-| `manufacturing_pmi` | 制造业PMI（最新月） | 指数 | 各国统计局 |
-| `services_pmi` | 服务业PMI（最新月） | 指数 | 各国统计局 |
-| `cpi_yoy` | CPI同比 | 小数 | 各国统计局 |
-| `real_interest_rate` | 实际利率 = 名义利率 - CPI | 小数 | 央行政策利率 - CPI同比 |
-| `earnings_growth_yoy` | 指数成分股盈利同比增速 | 小数 | 指数EPS-TTM同比 |
-| `credit_spread` | 信用利差 = 企业债收益率 - 国债收益率 | 小数 | Bloomberg / FRED |
-| `unemployment_rate` | 失业率 | 小数 | 各国统计局 |
+| raw_indicators 字段 | 含义 | 单位 | 获取方式 | 获取类型 |
+|---------------------|------|------|---------|---------|
+| `gdp_growth_yoy` | GDP同比增速（最近季度） | 小数 | 各国统计局 / FRED | API可取 |
+| `manufacturing_pmi` | 制造业PMI（最新月） | 指数 | 各国统计局 | 搜索整理 |
+| `services_pmi` | 服务业PMI（最新月） | 指数 | 各国统计局 | 搜索整理 |
+| `cpi_yoy` | CPI同比 | 小数 | 各国统计局 | API可取 |
+| `real_interest_rate` | 实际利率 = 名义利率 - CPI | 小数 | 央行政策利率 - CPI同比 | API可算 |
+| `earnings_growth_yoy` | 指数成分股盈利同比增速 | 小数 | 指数EPS-TTM同比 | 搜索整理 |
+| `credit_spread` | 信用利差 = 企业债收益率 - 国债收益率 | 小数 | Bloomberg / FRED | 搜索整理 |
+| `unemployment_rate` | 失业率 | 小数 | 各国统计局 | 搜索整理 |
 
 **评分公式**：
 
@@ -331,23 +365,23 @@ fundamentals.score = round(sub1 × 0.15 + sub2 × 0.10 + sub3 × 0.10 + sub4 × 
 
 ---
 
-### 维度五：制度可进入性 `institutional`（权重 10%）
+### 维度五：制度可进入性 `institutional`（权重 15%）
 
 **含义**：这个市场对资本是否友好，制度是否保护投资者。基于第一性原理，关注的不只是"能不能买"，更是"买了以后有没有制度保障"。
 
 **必须采集的指标**：
 
-| raw_indicators 字段 | 含义 | 单位 | 获取方式 |
-|---------------------|------|------|---------|
-| `foreign_ownership_limit` | 外资持股上限比例 | 0-1 | 查各国证券法规 |
-| `capital_flow_freedom` | 资本流动自由度评级 | 0-1 | IMF / 世界银行指数 |
-| `etf_available` | 是否有跟踪该指数的跨境ETF | boolean | 查 Bloomberg / ETF数据库 |
-| `settlement_days` | 交割周期（T+N） | 天 | 交易所规则 |
-| `withholding_tax` | 股息预扣税率 | 小数 | 各国税法 |
-| `investor_protection_index` | 投资者保护指数 | 0-10 | 世界银行 Doing Business / WGI |
-| `accounting_standards` | 会计准则评级 | 0-1 | IFRS基金会（1=完全采用IFRS，0.5=本地GAAP趋同，0=本地独立标准） |
-| `market_transparency` | 信息披露透明度 | 0-1 | MSCI ESG评级 / 透明国际指数 |
-| `dual_listing_accessibility` | 是否有存托凭证/双重上市渠道 | boolean | ADR/GDR数据库 |
+| raw_indicators 字段 | 含义 | 单位 | 获取方式 | 获取类型 |
+|---------------------|------|------|---------|---------|
+| `foreign_ownership_limit` | 外资持股上限比例 | 0-1 | 查各国证券法规 | 搜索整理 |
+| `capital_flow_freedom` | 资本流动自由度评级 | 0-1 | IMF / 世界银行指数 | 搜索整理 |
+| `etf_available` | 是否有跟踪该指数的跨境ETF | boolean | 查 Bloomberg / ETF数据库 | 搜索整理 |
+| `settlement_days` | 交割周期（T+N） | 天 | 交易所规则 | 搜索整理 |
+| `withholding_tax` | 股息预扣税率 | 小数 | 各国税法 | 搜索整理 |
+| `investor_protection_index` | 投资者保护指数 | 0-10 | 世界银行 Doing Business / WGI | 搜索整理 |
+| `accounting_standards` | 会计准则评级 | 0-1 | IFRS基金会（1=完全采用IFRS，0.5=本地GAAP趋同，0=本地独立标准） | 搜索整理 |
+| `market_transparency` | 信息披露透明度 | 0-1 | MSCI ESG评级 / 透明国际指数 | 搜索整理 |
+| `dual_listing_accessibility` | 是否有存托凭证/双重上市渠道 | boolean | ADR/GDR数据库 | 搜索整理 |
 
 **评分公式**：
 
@@ -390,20 +424,20 @@ institutional.score = round(sub1 × 0.12 + sub2 × 0.12 + sub3 × 0.08 + sub4 ×
 
 ---
 
-### 维度六：风险惩罚 `risk_penalty`（权重 10%）
+### 维度六：风险惩罚 `risk_penalty`（权重 15%）
 
 **含义**：这个市场会不会坑我——结构性风险，而非短期波动。基于第一性原理，关注的是"看不见的坑"：汇率陷阱、主权违约、资本冻结、地缘冲突等。
 
 **必须采集的指标**：
 
-| raw_indicators 字段 | 含义 | 单位 | 获取方式 |
-|---------------------|------|------|---------|
-| `max_drawdown_10y` | 近10年最大回撤 | 小数（负数） | 10年内最高点到最低点的跌幅 |
-| `currency_devaluation_5y` | 货币5年累计贬值幅度 | 小数 | (当前汇率 / 5年前汇率) - 1，正数=贬值 |
-| `sovereign_cds_spread` | 主权CDS利差 | bps | 5年期主权CDS报价 |
-| `correlation_with_us` | 与美股S&P500的3年相关系数 | 0-1 | 月度收益率相关系数 |
-| `geopolitical_risk_index` | 地缘政治风险指数 | 0-100 | Caldwell-Iacoviello GPR Index / 定性评估 |
-| `capital_control_risk` | 资本管制风险 | 0-1 | 0=无管制自由进出，1=严格管制（如阿根廷式冻结） |
+| raw_indicators 字段 | 含义 | 单位 | 获取方式 | 获取类型 |
+|---------------------|------|------|---------|---------|
+| `max_drawdown_10y` | 近10年最大回撤 | 小数（负数） | 10年内最高点到最低点的跌幅 | API可算 |
+| `currency_devaluation_5y` | 货币5年累计贬值幅度 | 小数 | (当前汇率 / 5年前汇率) - 1，正数=贬值 | API可算 |
+| `sovereign_cds_spread` | 主权CDS利差 | bps | 5年期主权CDS报价 | 搜索整理 |
+| `correlation_with_us` | 与美股S&P500的3年相关系数 | 0-1 | 月度收益率相关系数 | API可算 |
+| `geopolitical_risk_index` | 地缘政治风险指数 | 0-100 | Caldwell-Iacoviello GPR Index / 定性评估 | 搜索整理 |
+| `capital_control_risk` | 资本管制风险 | 0-1 | 0=无管制自由进出，1=严格管制（如阿根廷式冻结） | 搜索整理 |
 
 **评分公式**：
 

@@ -68,8 +68,7 @@ export interface RawIndicators {
   accounting_standards?: number;
   market_transparency?: number;
   dual_listing_accessibility?: boolean;
-  // risk_penalty
-  max_drawdown_10y?: number;
+  // risk_penalty (max_drawdown_10y 共用 profit_effect 的定义)
   currency_devaluation_5y?: number;
   sovereign_cds_spread?: number;
   correlation_with_us?: number;

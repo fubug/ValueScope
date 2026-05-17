@@ -34,7 +34,7 @@ const MARKETS = [
 ];
 
 const DIM_KEYS = ['profit_effect', 'valuation', 'scale_liquidity', 'fundamentals', 'institutional', 'risk_penalty'];
-const DIM_WEIGHTS = [0.30, 0.20, 0.15, 0.15, 0.10, 0.10];
+const DIM_WEIGHTS = [0.25, 0.20, 0.10, 0.15, 0.15, 0.15];
 
 function rand(min: number, max: number) {
   return Math.round(min + Math.random() * (max - min));
