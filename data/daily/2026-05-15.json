@@ -33,7 +33,7 @@
         }
       },
       "raw_indicators": {
-        "ytd_return": 0.2845,
+        "trailing_52w_return": 0.2845,
         "change_pct": 0,
         "pe_percentile": 0.79,
         "pe": 31.9,
@@ -48,10 +48,10 @@
       "market": "us_nasdaq",
       "market_name": "美国",
       "index_name": "纳斯达克100",
-      "fish_score": 66,
+      "fish_score": 65,
       "dimensions": {
         "profit_effect": {
-          "score": 92,
+          "score": 87,
           "weight": 0.3
         },
         "valuation": {
@@ -76,7 +76,7 @@
         }
       },
       "raw_indicators": {
-        "ytd_return": 0.4017,
+        "trailing_52w_return": 0.4017,
         "change_pct": 0,
         "pe_percentile": 0.89,
         "pe": 43.1,
@@ -119,7 +119,7 @@
         }
       },
       "raw_indicators": {
-        "ytd_return": 0.0056,
+        "trailing_52w_return": 0.0056,
         "change_pct": -1.12,
         "pe_percentile": 0.33,
         "pe": 14.96,
@@ -162,7 +162,7 @@
         }
       },
       "raw_indicators": {
-        "ytd_return": 0.0045,
+        "trailing_52w_return": 0.0045,
         "change_pct": -1.62,
         "pe_percentile": 0.35,
         "pe": 10.5,
@@ -177,10 +177,10 @@
       "market": "jp",
       "market_name": "日本",
       "index_name": "日经225",
-      "fish_score": 67,
+      "fish_score": 62,
       "dimensions": {
         "profit_effect": {
-          "score": 92,
+          "score": 77,
           "weight": 0.3
         },
         "valuation": {
@@ -205,7 +205,7 @@
         }
       },
       "raw_indicators": {
-        "ytd_return": 0.6662,
+        "trailing_52w_return": 0.6662,
         "change_pct": 0,
         "pe_percentile": 0.6,
         "pe": 22,
@@ -248,7 +248,7 @@
         }
       },
       "raw_indicators": {
-        "ytd_return": 0,
+        "trailing_52w_return": 0,
         "change_pct": 0,
         "pe_percentile": 0.45,
         "pe": 18,
@@ -291,7 +291,7 @@
         }
       },
       "raw_indicators": {
-        "ytd_return": 0.0954,
+        "trailing_52w_return": 0.0954,
         "change_pct": 0,
         "pe_percentile": 0.55,
         "pe": 20,
@@ -334,7 +334,7 @@
         }
       },
       "raw_indicators": {
-        "ytd_return": 0.0596,
+        "trailing_52w_return": 0.0596,
         "change_pct": 0,
         "pe_percentile": 0.42,
         "pe": 16,
@@ -377,7 +377,7 @@
         }
       },
       "raw_indicators": {
-        "ytd_return": 0.0446,
+        "trailing_52w_return": 0.0446,
         "change_pct": 0,
         "pe_percentile": 0.5,
         "pe": 17,
@@ -420,7 +420,7 @@
         }
       },
       "raw_indicators": {
-        "ytd_return": 0.3243,
+        "trailing_52w_return": 0.3243,
         "change_pct": 0,
         "pe_percentile": 0.45,
         "pe": 16,
@@ -435,10 +435,10 @@
       "market": "kr",
       "market_name": "韩国",
       "index_name": "KOSPI",
-      "fish_score": 72,
+      "fish_score": 63,
       "dimensions": {
         "profit_effect": {
-          "score": 92,
+          "score": 62,
           "weight": 0.3
         },
         "valuation": {
@@ -463,7 +463,7 @@
         }
       },
       "raw_indicators": {
-        "ytd_return": 1.0,
+        "trailing_52w_return": 1.8953,
         "change_pct": 0,
         "pe_percentile": 0.35,
         "pe": 14,
@@ -478,10 +478,10 @@
       "market": "tw",
       "market_name": "台湾",
       "index_name": "加权指数",
-      "fish_score": 71,
+      "fish_score": 66,
       "dimensions": {
         "profit_effect": {
-          "score": 92,
+          "score": 77,
           "weight": 0.3
         },
         "valuation": {
@@ -506,7 +506,7 @@
         }
       },
       "raw_indicators": {
-        "ytd_return": 0.9661,
+        "trailing_52w_return": 0.9661,
         "change_pct": 0,
         "pe_percentile": 0.58,
         "pe": 20,
@@ -549,7 +549,7 @@
         }
       },
       "raw_indicators": {
-        "ytd_return": 0.0659,
+        "trailing_52w_return": 0.0659,
         "change_pct": 0,
         "pe_percentile": 0.7,
         "pe": 22,
@@ -592,7 +592,7 @@
         }
       },
       "raw_indicators": {
-        "ytd_return": 0.1076,
+        "trailing_52w_return": 0.1076,
         "change_pct": 0,
         "pe_percentile": 0.28,
         "pe": 10,
@@ -635,7 +635,7 @@
         }
       },
       "raw_indicators": {
-        "ytd_return": 0.15,
+        "trailing_52w_return": 0.15,
         "change_pct": 0,
         "pe_percentile": 0.4,
         "pe": 15,
@@ -678,7 +678,7 @@
         }
       },
       "raw_indicators": {
-        "ytd_return": 0,
+        "trailing_52w_return": 0,
         "change_pct": 0,
         "market_cap_usd": 15000.0,
         "volatility_20d": 0.16
@@ -716,7 +716,7 @@
         }
       },
       "raw_indicators": {
-        "ytd_return": 0.05,
+        "trailing_52w_return": 0.05,
         "change_pct": 0.3,
         "dividend_yield": 0.0459,
         "market_cap_usd": 27000.0,
