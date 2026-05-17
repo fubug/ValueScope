@@ -12,7 +12,7 @@
           "weight": 0.25
         },
         "valuation": {
-          "score": 19,
+          "score": 18,
           "weight": 0.2
         },
         "scale_liquidity": {
@@ -68,8 +68,8 @@
         "correlation_with_us": 1.0,
         "pe_percentile": 0.78,
         "pb_percentile": 0.8,
-        "pe_ttm": 25.0,
-        "equity_risk_premium": -0.0059,
+        "pe_ttm": 31.9,
+        "equity_risk_premium": -0.014552,
         "bond_equity_yield_ratio": 0.9333,
         "daily_volume_usd": 1000000000.0,
         "turnover_rate": 0.01,
