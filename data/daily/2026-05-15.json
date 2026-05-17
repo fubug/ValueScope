@@ -1,0 +1,1042 @@
+{
+  "date": "2026-05-15",
+  "markets": [
+    {
+      "market": "us_sp500",
+      "market_name": "美国",
+      "index_name": "S&P 500",
+      "fish_score": 61,
+      "dimensions": {
+        "profit_effect": {
+          "score": 72,
+          "weight": 0.25
+        },
+        "valuation": {
+          "score": 31,
+          "weight": 0.2
+        },
+        "scale_liquidity": {
+          "score": 85,
+          "weight": 0.1
+        },
+        "fundamentals": {
+          "score": 68,
+          "weight": 0.15
+        },
+        "institutional": {
+          "score": 96,
+          "weight": 0.15
+        },
+        "risk_penalty": {
+          "score": 24,
+          "weight": 0.15
+        }
+      },
+      "raw_indicators": {
+        "cape_shiller_pe": 41.66,
+        "ev_ebitda": 20.5,
+        "dividend_buyback_yield": 0.042,
+        "free_float_market_cap_usd": 48000000000000.0,
+        "bid_ask_spread_bps": 2.0,
+        "manufacturing_pmi": 50.5,
+        "services_pmi": 51.8,
+        "earnings_growth_yoy": 0.12,
+        "credit_spread": 0.009,
+        "unemployment_rate": 0.042,
+        "foreign_ownership_limit": 1.0,
+        "capital_flow_freedom": 1.0,
+        "etf_available": true,
+        "settlement_days": 1,
+        "withholding_tax": 0.1,
+        "investor_protection_index": 8.3,
+        "accounting_standards": 1.0,
+        "market_transparency": 0.95,
+        "dual_listing_accessibility": true,
+        "sovereign_cds_spread": 20,
+        "geopolitical_risk_index": 15,
+        "capital_control_risk": 0.0,
+        "gdp_growth_yoy": 0.025,
+        "cpi_yoy": 0.023,
+        "real_interest_rate": 0.022,
+        "cagr_5y": 0.105,
+        "sharpe_3y": 0.65,
+        "positive_year_ratio_10y": 0.8,
+        "max_drawdown_10y": -0.34,
+        "drawdown_recovery_months": 6,
+        "volatility_20d": 0.15,
+        "amihud_illiquidity": 1e-11,
+        "correlation_with_us": 1.0,
+        "pe_percentile": 0.78,
+        "pb_percentile": 0.8,
+        "equity_risk_premium": 0.03,
+        "bond_equity_yield_ratio": 0.9333,
+        "daily_volume_usd": 1000000000.0,
+        "turnover_rate": 0.01,
+        "currency_devaluation_5y": 0.0
+      }
+    },
+    {
+      "market": "jp",
+      "market_name": "日本",
+      "index_name": "日经225",
+      "fish_score": 62,
+      "dimensions": {
+        "profit_effect": {
+          "score": 62,
+          "weight": 0.25
+        },
+        "valuation": {
+          "score": 59,
+          "weight": 0.2
+        },
+        "scale_liquidity": {
+          "score": 84,
+          "weight": 0.1
+        },
+        "fundamentals": {
+          "score": 63,
+          "weight": 0.15
+        },
+        "institutional": {
+          "score": 92,
+          "weight": 0.15
+        },
+        "risk_penalty": {
+          "score": 18,
+          "weight": 0.15
+        }
+      },
+      "raw_indicators": {
+        "cape_shiller_pe": 22.0,
+        "ev_ebitda": 14.0,
+        "dividend_buyback_yield": 0.025,
+        "free_float_market_cap_usd": 6200000000000.0,
+        "bid_ask_spread_bps": 5.0,
+        "manufacturing_pmi": 49.8,
+        "services_pmi": 52.5,
+        "earnings_growth_yoy": 0.1,
+        "credit_spread": 0.008,
+        "unemployment_rate": 0.025,
+        "foreign_ownership_limit": 1.0,
+        "capital_flow_freedom": 0.95,
+        "etf_available": true,
+        "settlement_days": 2,
+        "withholding_tax": 0.15,
+        "investor_protection_index": 7.1,
+        "accounting_standards": 1.0,
+        "market_transparency": 0.85,
+        "dual_listing_accessibility": true,
+        "sovereign_cds_spread": 25,
+        "geopolitical_risk_index": 20,
+        "capital_control_risk": 0.0,
+        "gdp_growth_yoy": 0.011,
+        "cpi_yoy": 0.003,
+        "real_interest_rate": 0.002,
+        "cagr_5y": 0.085,
+        "sharpe_3y": 0.55,
+        "positive_year_ratio_10y": 0.7,
+        "max_drawdown_10y": -0.28,
+        "drawdown_recovery_months": 8,
+        "volatility_20d": 0.18,
+        "amihud_illiquidity": 5e-11,
+        "correlation_with_us": 0.55,
+        "pe_percentile": 0.55,
+        "pb_percentile": 0.6,
+        "equity_risk_premium": 0.03,
+        "bond_equity_yield_ratio": 2.5,
+        "daily_volume_usd": 1000000000.0,
+        "turnover_rate": 0.01,
+        "currency_devaluation_5y": -0.2
+      }
+    },
+    {
+      "market": "gb",
+      "market_name": "英国",
+      "index_name": "FTSE 100",
+      "fish_score": 60,
+      "dimensions": {
+        "profit_effect": {
+          "score": 54,
+          "weight": 0.25
+        },
+        "valuation": {
+          "score": 58,
+          "weight": 0.2
+        },
+        "scale_liquidity": {
+          "score": 83,
+          "weight": 0.1
+        },
+        "fundamentals": {
+          "score": 61,
+          "weight": 0.15
+        },
+        "institutional": {
+          "score": 95,
+          "weight": 0.15
+        },
+        "risk_penalty": {
+          "score": 19,
+          "weight": 0.15
+        }
+      },
+      "raw_indicators": {
+        "cape_shiller_pe": 18.5,
+        "ev_ebitda": 12.0,
+        "dividend_buyback_yield": 0.048,
+        "free_float_market_cap_usd": 4000000000000.0,
+        "bid_ask_spread_bps": 4.0,
+        "manufacturing_pmi": 50.0,
+        "services_pmi": 53.0,
+        "earnings_growth_yoy": 0.06,
+        "credit_spread": 0.01,
+        "unemployment_rate": 0.044,
+        "foreign_ownership_limit": 1.0,
+        "capital_flow_freedom": 0.95,
+        "etf_available": true,
+        "settlement_days": 2,
+        "withholding_tax": 0.0,
+        "investor_protection_index": 8.0,
+        "accounting_standards": 1.0,
+        "market_transparency": 0.9,
+        "dual_listing_accessibility": true,
+        "sovereign_cds_spread": 22,
+        "geopolitical_risk_index": 15,
+        "capital_control_risk": 0.0,
+        "gdp_growth_yoy": 0.006,
+        "cpi_yoy": 0.026,
+        "real_interest_rate": 0.016,
+        "cagr_5y": 0.035,
+        "sharpe_3y": 0.3,
+        "positive_year_ratio_10y": 0.7,
+        "max_drawdown_10y": -0.3,
+        "drawdown_recovery_months": 10,
+        "volatility_20d": 0.13,
+        "amihud_illiquidity": 3e-11,
+        "correlation_with_us": 0.7,
+        "pe_percentile": 0.5,
+        "pb_percentile": 0.55,
+        "equity_risk_premium": 0.03,
+        "bond_equity_yield_ratio": 1.1429,
+        "daily_volume_usd": 1000000000.0,
+        "turnover_rate": 0.01,
+        "currency_devaluation_5y": -0.15
+      }
+    },
+    {
+      "market": "de",
+      "market_name": "德国",
+      "index_name": "DAX",
+      "fish_score": 59,
+      "dimensions": {
+        "profit_effect": {
+          "score": 54,
+          "weight": 0.25
+        },
+        "valuation": {
+          "score": 54,
+          "weight": 0.2
+        },
+        "scale_liquidity": {
+          "score": 82,
+          "weight": 0.1
+        },
+        "fundamentals": {
+          "score": 61,
+          "weight": 0.15
+        },
+        "institutional": {
+          "score": 94,
+          "weight": 0.15
+        },
+        "risk_penalty": {
+          "score": 21,
+          "weight": 0.15
+        }
+      },
+      "raw_indicators": {
+        "cape_shiller_pe": 20.0,
+        "ev_ebitda": 13.5,
+        "dividend_buyback_yield": 0.035,
+        "free_float_market_cap_usd": 2800000000000.0,
+        "bid_ask_spread_bps": 4.0,
+        "manufacturing_pmi": 47.2,
+        "services_pmi": 52.0,
+        "earnings_growth_yoy": 0.08,
+        "credit_spread": 0.008,
+        "unemployment_rate": 0.033,
+        "foreign_ownership_limit": 1.0,
+        "capital_flow_freedom": 0.95,
+        "etf_available": true,
+        "settlement_days": 2,
+        "withholding_tax": 0.15,
+        "investor_protection_index": 8.2,
+        "accounting_standards": 1.0,
+        "market_transparency": 0.9,
+        "dual_listing_accessibility": true,
+        "sovereign_cds_spread": 25,
+        "geopolitical_risk_index": 20,
+        "capital_control_risk": 0.0,
+        "gdp_growth_yoy": 0.004,
+        "cpi_yoy": 0.022,
+        "real_interest_rate": 0.003,
+        "cagr_5y": 0.06,
+        "sharpe_3y": 0.35,
+        "positive_year_ratio_10y": 0.7,
+        "max_drawdown_10y": -0.32,
+        "drawdown_recovery_months": 12,
+        "volatility_20d": 0.16,
+        "amihud_illiquidity": 4e-11,
+        "correlation_with_us": 0.72,
+        "pe_percentile": 0.6,
+        "pb_percentile": 0.65,
+        "equity_risk_premium": 0.03,
+        "bond_equity_yield_ratio": 1.4,
+        "daily_volume_usd": 1000000000.0,
+        "turnover_rate": 0.01,
+        "currency_devaluation_5y": -0.18
+      }
+    },
+    {
+      "market": "fr",
+      "market_name": "法国",
+      "index_name": "CAC 40",
+      "fish_score": 59,
+      "dimensions": {
+        "profit_effect": {
+          "score": 52,
+          "weight": 0.25
+        },
+        "valuation": {
+          "score": 62,
+          "weight": 0.2
+        },
+        "scale_liquidity": {
+          "score": 82,
+          "weight": 0.1
+        },
+        "fundamentals": {
+          "score": 57,
+          "weight": 0.15
+        },
+        "institutional": {
+          "score": 93,
+          "weight": 0.15
+        },
+        "risk_penalty": {
+          "score": 20,
+          "weight": 0.15
+        }
+      },
+      "raw_indicators": {
+        "cape_shiller_pe": 17.0,
+        "ev_ebitda": 12.5,
+        "dividend_buyback_yield": 0.04,
+        "free_float_market_cap_usd": 3000000000000.0,
+        "bid_ask_spread_bps": 4.5,
+        "manufacturing_pmi": 49.0,
+        "services_pmi": 51.5,
+        "earnings_growth_yoy": 0.07,
+        "credit_spread": 0.01,
+        "unemployment_rate": 0.075,
+        "foreign_ownership_limit": 1.0,
+        "capital_flow_freedom": 0.95,
+        "etf_available": true,
+        "settlement_days": 2,
+        "withholding_tax": 0.15,
+        "investor_protection_index": 7.8,
+        "accounting_standards": 1.0,
+        "market_transparency": 0.85,
+        "dual_listing_accessibility": true,
+        "sovereign_cds_spread": 28,
+        "geopolitical_risk_index": 18,
+        "capital_control_risk": 0.0,
+        "gdp_growth_yoy": 0.008,
+        "cpi_yoy": 0.02,
+        "real_interest_rate": 0.005,
+        "cagr_5y": 0.045,
+        "sharpe_3y": 0.3,
+        "positive_year_ratio_10y": 0.65,
+        "max_drawdown_10y": -0.3,
+        "drawdown_recovery_months": 12,
+        "volatility_20d": 0.15,
+        "amihud_illiquidity": 4e-11,
+        "correlation_with_us": 0.7,
+        "pe_percentile": 0.45,
+        "pb_percentile": 0.5,
+        "equity_risk_premium": 0.03,
+        "bond_equity_yield_ratio": 1.3333,
+        "daily_volume_usd": 1000000000.0,
+        "turnover_rate": 0.01,
+        "currency_devaluation_5y": -0.18
+      }
+    },
+    {
+      "market": "au",
+      "market_name": "澳洲",
+      "index_name": "ASX 200",
+      "fish_score": 60,
+      "dimensions": {
+        "profit_effect": {
+          "score": 61,
+          "weight": 0.25
+        },
+        "valuation": {
+          "score": 55,
+          "weight": 0.2
+        },
+        "scale_liquidity": {
+          "score": 80,
+          "weight": 0.1
+        },
+        "fundamentals": {
+          "score": 64,
+          "weight": 0.15
+        },
+        "institutional": {
+          "score": 93,
+          "weight": 0.15
+        },
+        "risk_penalty": {
+          "score": 17,
+          "weight": 0.15
+        }
+      },
+      "raw_indicators": {
+        "cape_shiller_pe": 19.0,
+        "ev_ebitda": 13.0,
+        "dividend_buyback_yield": 0.05,
+        "free_float_market_cap_usd": 1800000000000.0,
+        "bid_ask_spread_bps": 4.0,
+        "manufacturing_pmi": 50.5,
+        "services_pmi": 52.5,
+        "earnings_growth_yoy": 0.08,
+        "credit_spread": 0.008,
+        "unemployment_rate": 0.04,
+        "foreign_ownership_limit": 1.0,
+        "capital_flow_freedom": 0.9,
+        "etf_available": true,
+        "settlement_days": 2,
+        "withholding_tax": 0.15,
+        "investor_protection_index": 8.2,
+        "accounting_standards": 1.0,
+        "market_transparency": 0.9,
+        "dual_listing_accessibility": true,
+        "sovereign_cds_spread": 25,
+        "geopolitical_risk_index": 10,
+        "capital_control_risk": 0.0,
+        "gdp_growth_yoy": 0.017,
+        "cpi_yoy": 0.024,
+        "real_interest_rate": 0.012,
+        "cagr_5y": 0.055,
+        "sharpe_3y": 0.4,
+        "positive_year_ratio_10y": 0.7,
+        "max_drawdown_10y": -0.28,
+        "drawdown_recovery_months": 8,
+        "volatility_20d": 0.13,
+        "amihud_illiquidity": 3e-11,
+        "correlation_with_us": 0.6,
+        "pe_percentile": 0.55,
+        "pb_percentile": 0.6,
+        "equity_risk_premium": 0.03,
+        "bond_equity_yield_ratio": 1.1628,
+        "daily_volume_usd": 1000000000.0,
+        "turnover_rate": 0.01,
+        "currency_devaluation_5y": -0.2
+      }
+    },
+    {
+      "market": "ca",
+      "market_name": "加拿大",
+      "index_name": "S&P/TSX",
+      "fish_score": 60,
+      "dimensions": {
+        "profit_effect": {
+          "score": 59,
+          "weight": 0.25
+        },
+        "valuation": {
+          "score": 56,
+          "weight": 0.2
+        },
+        "scale_liquidity": {
+          "score": 82,
+          "weight": 0.1
+        },
+        "fundamentals": {
+          "score": 61,
+          "weight": 0.15
+        },
+        "institutional": {
+          "score": 94,
+          "weight": 0.15
+        },
+        "risk_penalty": {
+          "score": 19,
+          "weight": 0.15
+        }
+      },
+      "raw_indicators": {
+        "cape_shiller_pe": 20.5,
+        "ev_ebitda": 13.0,
+        "dividend_buyback_yield": 0.038,
+        "free_float_market_cap_usd": 3200000000000.0,
+        "bid_ask_spread_bps": 3.5,
+        "manufacturing_pmi": 50.0,
+        "services_pmi": 53.0,
+        "earnings_growth_yoy": 0.09,
+        "credit_spread": 0.008,
+        "unemployment_rate": 0.065,
+        "foreign_ownership_limit": 1.0,
+        "capital_flow_freedom": 0.95,
+        "etf_available": true,
+        "settlement_days": 2,
+        "withholding_tax": 0.15,
+        "investor_protection_index": 8.3,
+        "accounting_standards": 1.0,
+        "market_transparency": 0.9,
+        "dual_listing_accessibility": true,
+        "sovereign_cds_spread": 22,
+        "geopolitical_risk_index": 10,
+        "capital_control_risk": 0.0,
+        "gdp_growth_yoy": 0.015,
+        "cpi_yoy": 0.025,
+        "real_interest_rate": 0.005,
+        "cagr_5y": 0.055,
+        "sharpe_3y": 0.45,
+        "positive_year_ratio_10y": 0.75,
+        "max_drawdown_10y": -0.3,
+        "drawdown_recovery_months": 8,
+        "volatility_20d": 0.14,
+        "amihud_illiquidity": 3e-11,
+        "correlation_with_us": 0.75,
+        "pe_percentile": 0.5,
+        "pb_percentile": 0.55,
+        "equity_risk_premium": 0.03,
+        "bond_equity_yield_ratio": 1.1875,
+        "daily_volume_usd": 1000000000.0,
+        "turnover_rate": 0.01,
+        "currency_devaluation_5y": -0.15
+      }
+    },
+    {
+      "market": "cn_ashare",
+      "market_name": "A股",
+      "index_name": "沪深300",
+      "fish_score": 58,
+      "dimensions": {
+        "profit_effect": {
+          "score": 35,
+          "weight": 0.25
+        },
+        "valuation": {
+          "score": 81,
+          "weight": 0.2
+        },
+        "scale_liquidity": {
+          "score": 91,
+          "weight": 0.1
+        },
+        "fundamentals": {
+          "score": 64,
+          "weight": 0.15
+        },
+        "institutional": {
+          "score": 63,
+          "weight": 0.15
+        },
+        "risk_penalty": {
+          "score": 32,
+          "weight": 0.15
+        }
+      },
+      "raw_indicators": {
+        "cape_shiller_pe": 15.5,
+        "ev_ebitda": 11.0,
+        "dividend_buyback_yield": 0.03,
+        "free_float_market_cap_usd": 5600000000000.0,
+        "bid_ask_spread_bps": 8.0,
+        "manufacturing_pmi": 50.2,
+        "services_pmi": 51.0,
+        "earnings_growth_yoy": 0.08,
+        "credit_spread": 0.015,
+        "unemployment_rate": 0.052,
+        "foreign_ownership_limit": 0.3,
+        "capital_flow_freedom": 0.5,
+        "etf_available": true,
+        "settlement_days": 1,
+        "withholding_tax": 0.1,
+        "investor_protection_index": 4.6,
+        "accounting_standards": 0.5,
+        "market_transparency": 0.45,
+        "dual_listing_accessibility": true,
+        "sovereign_cds_spread": 60,
+        "geopolitical_risk_index": 45,
+        "capital_control_risk": 0.35,
+        "gdp_growth_yoy": 0.048,
+        "cpi_yoy": 0.001,
+        "real_interest_rate": 0.03,
+        "cagr_5y": 0.02,
+        "sharpe_3y": 0.1,
+        "positive_year_ratio_10y": 0.5,
+        "max_drawdown_10y": -0.45,
+        "drawdown_recovery_months": 18,
+        "volatility_20d": 0.2,
+        "amihud_illiquidity": 2e-10,
+        "correlation_with_us": 0.25,
+        "pe_percentile": 0.14775072224515065,
+        "pb_percentile": 0.47957078002476267,
+        "pe_ttm": 13.82,
+        "equity_risk_premium": 0.055359,
+        "bond_equity_yield_ratio": 1.7647,
+        "daily_volume_usd": 186937472299.27,
+        "turnover_rate": 0.033382,
+        "currency_devaluation_5y": -0.08
+      }
+    },
+    {
+      "market": "cn_hk",
+      "market_name": "港股",
+      "index_name": "恒生指数",
+      "fish_score": 60,
+      "dimensions": {
+        "profit_effect": {
+          "score": 35,
+          "weight": 0.25
+        },
+        "valuation": {
+          "score": 74,
+          "weight": 0.2
+        },
+        "scale_liquidity": {
+          "score": 83,
+          "weight": 0.1
+        },
+        "fundamentals": {
+          "score": 66,
+          "weight": 0.15
+        },
+        "institutional": {
+          "score": 92,
+          "weight": 0.15
+        },
+        "risk_penalty": {
+          "score": 33,
+          "weight": 0.15
+        }
+      },
+      "raw_indicators": {
+        "cape_shiller_pe": 12.5,
+        "ev_ebitda": 9.5,
+        "dividend_buyback_yield": 0.045,
+        "free_float_market_cap_usd": 4500000000000.0,
+        "bid_ask_spread_bps": 6.0,
+        "manufacturing_pmi": 49.5,
+        "services_pmi": 51.5,
+        "earnings_growth_yoy": 0.05,
+        "credit_spread": 0.012,
+        "unemployment_rate": 0.03,
+        "foreign_ownership_limit": 1.0,
+        "capital_flow_freedom": 0.9,
+        "etf_available": true,
+        "settlement_days": 2,
+        "withholding_tax": 0.0,
+        "investor_protection_index": 7.3,
+        "accounting_standards": 1.0,
+        "market_transparency": 0.8,
+        "dual_listing_accessibility": true,
+        "sovereign_cds_spread": 40,
+        "geopolitical_risk_index": 55,
+        "capital_control_risk": 0.1,
+        "gdp_growth_yoy": 0.03,
+        "cpi_yoy": 0.015,
+        "real_interest_rate": 0.03,
+        "cagr_5y": 0.01,
+        "sharpe_3y": 0.05,
+        "positive_year_ratio_10y": 0.5,
+        "max_drawdown_10y": -0.5,
+        "drawdown_recovery_months": 20,
+        "volatility_20d": 0.22,
+        "amihud_illiquidity": 5e-10,
+        "correlation_with_us": 0.55,
+        "pe_percentile": 0.25,
+        "pb_percentile": 0.2,
+        "equity_risk_premium": 0.03,
+        "bond_equity_yield_ratio": 1.125,
+        "daily_volume_usd": 1000000000.0,
+        "turnover_rate": 0.01,
+        "currency_devaluation_5y": -0.02
+      }
+    },
+    {
+      "market": "kr",
+      "market_name": "韩国",
+      "index_name": "KOSPI",
+      "fish_score": 62,
+      "dimensions": {
+        "profit_effect": {
+          "score": 54,
+          "weight": 0.25
+        },
+        "valuation": {
+          "score": 67,
+          "weight": 0.2
+        },
+        "scale_liquidity": {
+          "score": 80,
+          "weight": 0.1
+        },
+        "fundamentals": {
+          "score": 69,
+          "weight": 0.15
+        },
+        "institutional": {
+          "score": 85,
+          "weight": 0.15
+        },
+        "risk_penalty": {
+          "score": 25,
+          "weight": 0.15
+        }
+      },
+      "raw_indicators": {
+        "cape_shiller_pe": 14.5,
+        "ev_ebitda": 11.0,
+        "dividend_buyback_yield": 0.025,
+        "free_float_market_cap_usd": 1800000000000.0,
+        "bid_ask_spread_bps": 7.0,
+        "manufacturing_pmi": 50.8,
+        "services_pmi": 52.0,
+        "earnings_growth_yoy": 0.15,
+        "credit_spread": 0.012,
+        "unemployment_rate": 0.028,
+        "foreign_ownership_limit": 1.0,
+        "capital_flow_freedom": 0.7,
+        "etf_available": true,
+        "settlement_days": 2,
+        "withholding_tax": 0.15,
+        "investor_protection_index": 6.2,
+        "accounting_standards": 1.0,
+        "market_transparency": 0.7,
+        "dual_listing_accessibility": true,
+        "sovereign_cds_spread": 35,
+        "geopolitical_risk_index": 55,
+        "capital_control_risk": 0.05,
+        "gdp_growth_yoy": 0.022,
+        "cpi_yoy": 0.016,
+        "real_interest_rate": 0.009,
+        "cagr_5y": 0.065,
+        "sharpe_3y": 0.4,
+        "positive_year_ratio_10y": 0.65,
+        "max_drawdown_10y": -0.3,
+        "drawdown_recovery_months": 10,
+        "volatility_20d": 0.18,
+        "amihud_illiquidity": 1e-10,
+        "correlation_with_us": 0.5,
+        "pe_percentile": 0.3,
+        "pb_percentile": 0.35,
+        "equity_risk_premium": 0.03,
+        "bond_equity_yield_ratio": 0.9615,
+        "daily_volume_usd": 1000000000.0,
+        "turnover_rate": 0.01,
+        "currency_devaluation_5y": -0.1
+      }
+    },
+    {
+      "market": "tw",
+      "market_name": "台湾",
+      "index_name": "加权指数",
+      "fish_score": 63,
+      "dimensions": {
+        "profit_effect": {
+          "score": 69,
+          "weight": 0.25
+        },
+        "valuation": {
+          "score": 50,
+          "weight": 0.2
+        },
+        "scale_liquidity": {
+          "score": 81,
+          "weight": 0.1
+        },
+        "fundamentals": {
+          "score": 71,
+          "weight": 0.15
+        },
+        "institutional": {
+          "score": 87,
+          "weight": 0.15
+        },
+        "risk_penalty": {
+          "score": 28,
+          "weight": 0.15
+        }
+      },
+      "raw_indicators": {
+        "cape_shiller_pe": 22.0,
+        "ev_ebitda": 15.0,
+        "dividend_buyback_yield": 0.03,
+        "free_float_market_cap_usd": 2200000000000.0,
+        "bid_ask_spread_bps": 6.0,
+        "manufacturing_pmi": 53.0,
+        "services_pmi": 54.0,
+        "earnings_growth_yoy": 0.18,
+        "credit_spread": 0.01,
+        "unemployment_rate": 0.034,
+        "foreign_ownership_limit": 1.0,
+        "capital_flow_freedom": 0.7,
+        "etf_available": true,
+        "settlement_days": 2,
+        "withholding_tax": 0.2,
+        "investor_protection_index": 7.0,
+        "accounting_standards": 1.0,
+        "market_transparency": 0.75,
+        "dual_listing_accessibility": true,
+        "sovereign_cds_spread": 30,
+        "geopolitical_risk_index": 60,
+        "capital_control_risk": 0.05,
+        "gdp_growth_yoy": 0.032,
+        "cpi_yoy": 0.025,
+        "real_interest_rate": -0.005,
+        "cagr_5y": 0.11,
+        "sharpe_3y": 0.6,
+        "positive_year_ratio_10y": 0.8,
+        "max_drawdown_10y": -0.35,
+        "drawdown_recovery_months": 6,
+        "volatility_20d": 0.17,
+        "amihud_illiquidity": 5e-11,
+        "correlation_with_us": 0.6,
+        "pe_percentile": 0.65,
+        "pb_percentile": 0.7,
+        "equity_risk_premium": 0.03,
+        "bond_equity_yield_ratio": 1.3636,
+        "daily_volume_usd": 1000000000.0,
+        "turnover_rate": 0.01,
+        "currency_devaluation_5y": -0.08
+      }
+    },
+    {
+      "market": "in",
+      "market_name": "印度",
+      "index_name": "Nifty 50",
+      "fish_score": 55,
+      "dimensions": {
+        "profit_effect": {
+          "score": 59,
+          "weight": 0.25
+        },
+        "valuation": {
+          "score": 33,
+          "weight": 0.2
+        },
+        "scale_liquidity": {
+          "score": 83,
+          "weight": 0.1
+        },
+        "fundamentals": {
+          "score": 76,
+          "weight": 0.15
+        },
+        "institutional": {
+          "score": 65,
+          "weight": 0.15
+        },
+        "risk_penalty": {
+          "score": 27,
+          "weight": 0.15
+        }
+      },
+      "raw_indicators": {
+        "cape_shiller_pe": 24.0,
+        "ev_ebitda": 18.0,
+        "dividend_buyback_yield": 0.015,
+        "free_float_market_cap_usd": 4500000000000.0,
+        "bid_ask_spread_bps": 8.0,
+        "manufacturing_pmi": 57.5,
+        "services_pmi": 59.0,
+        "earnings_growth_yoy": 0.15,
+        "credit_spread": 0.015,
+        "unemployment_rate": 0.078,
+        "foreign_ownership_limit": 0.3,
+        "capital_flow_freedom": 0.55,
+        "etf_available": true,
+        "settlement_days": 2,
+        "withholding_tax": 0.15,
+        "investor_protection_index": 4.5,
+        "accounting_standards": 0.5,
+        "market_transparency": 0.55,
+        "dual_listing_accessibility": true,
+        "sovereign_cds_spread": 55,
+        "geopolitical_risk_index": 35,
+        "capital_control_risk": 0.2,
+        "gdp_growth_yoy": 0.068,
+        "cpi_yoy": 0.045,
+        "real_interest_rate": 0.02,
+        "cagr_5y": 0.09,
+        "sharpe_3y": 0.55,
+        "positive_year_ratio_10y": 0.75,
+        "max_drawdown_10y": -0.4,
+        "drawdown_recovery_months": 8,
+        "volatility_20d": 0.14,
+        "amihud_illiquidity": 5e-11,
+        "correlation_with_us": 0.35,
+        "pe_percentile": 0.8,
+        "pb_percentile": 0.85,
+        "equity_risk_premium": 0.03,
+        "bond_equity_yield_ratio": 0.2143,
+        "daily_volume_usd": 1000000000.0,
+        "turnover_rate": 0.01,
+        "currency_devaluation_5y": -0.22
+      }
+    },
+    {
+      "market": "vn",
+      "market_name": "越南",
+      "index_name": "VN-Index",
+      "fish_score": 53,
+      "dimensions": {
+        "profit_effect": {
+          "score": 50,
+          "weight": 0.25
+        },
+        "valuation": {
+          "score": 60,
+          "weight": 0.2
+        },
+        "scale_liquidity": {
+          "score": 73,
+          "weight": 0.1
+        },
+        "fundamentals": {
+          "score": 68,
+          "weight": 0.15
+        },
+        "institutional": {
+          "score": 43,
+          "weight": 0.15
+        },
+        "risk_penalty": {
+          "score": 31,
+          "weight": 0.15
+        }
+      },
+      "raw_indicators": {
+        "cape_shiller_pe": 16.0,
+        "ev_ebitda": 12.0,
+        "dividend_buyback_yield": 0.03,
+        "free_float_market_cap_usd": 280000000000.0,
+        "bid_ask_spread_bps": 15.0,
+        "manufacturing_pmi": 52.0,
+        "services_pmi": null,
+        "earnings_growth_yoy": 0.12,
+        "credit_spread": 0.025,
+        "unemployment_rate": 0.021,
+        "foreign_ownership_limit": 0.49,
+        "capital_flow_freedom": 0.35,
+        "etf_available": false,
+        "settlement_days": 3,
+        "withholding_tax": 0.05,
+        "investor_protection_index": 3.5,
+        "accounting_standards": 0.3,
+        "market_transparency": 0.3,
+        "dual_listing_accessibility": false,
+        "sovereign_cds_spread": 120,
+        "geopolitical_risk_index": 30,
+        "capital_control_risk": 0.3,
+        "gdp_growth_yoy": 0.065,
+        "cpi_yoy": 0.03,
+        "real_interest_rate": 0.0,
+        "cagr_5y": 0.065,
+        "sharpe_3y": 0.35,
+        "positive_year_ratio_10y": 0.7,
+        "max_drawdown_10y": -0.45,
+        "drawdown_recovery_months": 15,
+        "volatility_20d": 0.17,
+        "amihud_illiquidity": 2e-09,
+        "correlation_with_us": 0.25,
+        "pe_percentile": 0.45,
+        "pb_percentile": 0.5,
+        "equity_risk_premium": 0.03,
+        "bond_equity_yield_ratio": 1.0,
+        "daily_volume_usd": 1000000000.0,
+        "turnover_rate": 0.01,
+        "currency_devaluation_5y": -0.15
+      }
+    },
+    {
+      "market": "br",
+      "market_name": "巴西",
+      "index_name": "Bovespa",
+      "fish_score": 56,
+      "dimensions": {
+        "profit_effect": {
+          "score": 42,
+          "weight": 0.25
+        },
+        "valuation": {
+          "score": 70,
+          "weight": 0.2
+        },
+        "scale_liquidity": {
+          "score": 79,
+          "weight": 0.1
+        },
+        "fundamentals": {
+          "score": 53,
+          "weight": 0.15
+        },
+        "institutional": {
+          "score": 76,
+          "weight": 0.15
+        },
+        "risk_penalty": {
+          "score": 31,
+          "weight": 0.15
+        }
+      },
+      "raw_indicators": {
+        "cape_shiller_pe": 11.0,
+        "ev_ebitda": 8.5,
+        "dividend_buyback_yield": 0.06,
+        "free_float_market_cap_usd": 1200000000000.0,
+        "bid_ask_spread_bps": 10.0,
+        "manufacturing_pmi": 50.0,
+        "services_pmi": 51.0,
+        "earnings_growth_yoy": 0.1,
+        "credit_spread": 0.02,
+        "unemployment_rate": 0.078,
+        "foreign_ownership_limit": 1.0,
+        "capital_flow_freedom": 0.65,
+        "etf_available": true,
+        "settlement_days": 2,
+        "withholding_tax": 0.0,
+        "investor_protection_index": 5.2,
+        "accounting_standards": 0.5,
+        "market_transparency": 0.5,
+        "dual_listing_accessibility": true,
+        "sovereign_cds_spread": 100,
+        "geopolitical_risk_index": 25,
+        "capital_control_risk": 0.1,
+        "gdp_growth_yoy": 0.025,
+        "cpi_yoy": 0.04,
+        "real_interest_rate": 0.105,
+        "cagr_5y": 0.025,
+        "sharpe_3y": 0.15,
+        "positive_year_ratio_10y": 0.55,
+        "max_drawdown_10y": -0.5,
+        "drawdown_recovery_months": 20,
+        "volatility_20d": 0.22,
+        "amihud_illiquidity": 5e-10,
+        "correlation_with_us": 0.5,
+        "pe_percentile": 0.25,
+        "pb_percentile": 0.2,
+        "equity_risk_premium": 0.03,
+        "bond_equity_yield_ratio": 0.4138,
+        "daily_volume_usd": 1000000000.0,
+        "turnover_rate": 0.01,
+        "currency_devaluation_5y": -0.3
+      }
+    }
+  ]
+}
