@@ -425,7 +425,7 @@
           "weight": 0.2
         },
         "transaction_cost": {
-          "score": 85,
+          "score": 82,
           "weight": 0.2
         },
         "incentive_alignment": {
@@ -447,7 +447,7 @@
         "short_selling_allowed": false,
         "price_impact_ratio": 0.65,
         "market_efficiency_index": 0.35,
-        "total_commission_rate": 0.0003,
+        "total_commission_rate": 0.0016,
         "bid_ask_spread_bps": 8.0,
         "settlement_days": 1,
         "withholding_tax": 0.1,
@@ -595,14 +595,14 @@
       "market": "tw",
       "market_name": "台湾",
       "index_name": "加权指数",
-      "fish_score": 70,
+      "fish_score": 69,
       "dimensions": {
         "info_aggregation": {
           "score": 66,
           "weight": 0.2
         },
         "transaction_cost": {
-          "score": 82,
+          "score": 76,
           "weight": 0.2
         },
         "incentive_alignment": {
@@ -624,11 +624,11 @@
         "short_selling_allowed": true,
         "price_impact_ratio": 0.55,
         "market_efficiency_index": 0.45,
-        "total_commission_rate": 0.0015,
+        "total_commission_rate": 0.001425,
         "bid_ask_spread_bps": 7.0,
         "settlement_days": 2,
         "withholding_tax": 0.2,
-        "capital_gains_tax": 0.0,
+        "capital_gains_tax": 0.15,
         "amihud_illiquidity": 6e-10,
         "shareholder_activism_score": 0.4,
         "board_independence_ratio": 0.55,
@@ -654,10 +654,10 @@
       "market": "in",
       "market_name": "印度",
       "index_name": "Nifty 50",
-      "fish_score": 58,
+      "fish_score": 55,
       "dimensions": {
         "info_aggregation": {
-          "score": 58,
+          "score": 51,
           "weight": 0.2
         },
         "transaction_cost": {
@@ -665,7 +665,7 @@
           "weight": 0.2
         },
         "incentive_alignment": {
-          "score": 48,
+          "score": 39,
           "weight": 0.2
         },
         "risk_dispersion": {
@@ -706,7 +706,7 @@
         "delisting_rate": 0.015,
         "investor_protection_index": 4.5,
         "accounting_standards": 0.5,
-        "short_selling_effectiveness": "full"
+        "short_selling_effectiveness": "restricted"
       }
     },
     {
@@ -765,7 +765,7 @@
         "delisting_rate": 0.002,
         "investor_protection_index": 3.5,
         "accounting_standards": 0.3,
-        "short_selling_effectiveness": "full"
+        "short_selling_effectiveness": "prohibited"
       }
     },
     {
