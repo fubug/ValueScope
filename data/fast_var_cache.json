@@ -1,0 +1,11 @@
+{
+  "date": "2026-05-20",
+  "data": {
+    "us_sp500": {
+      "pe_ttm": 31.66,
+      "pe_source": "multpl.com",
+      "cape": 41.35,
+      "cape_source": "multpl.com"
+    }
+  }
+}

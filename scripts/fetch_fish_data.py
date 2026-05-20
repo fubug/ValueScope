@@ -19,6 +19,23 @@ from pathlib import Path
 import requests
 
 # ============================================================
+# 指标数据源参考（慢变量，建议每半年校验一次）
+# ============================================================
+# 数据主要来源于以下公开数据集和研究：
+#   - World Bank: Worldwide Governance Indicators (rule_of_law, judicial_independence)
+#   - World Bank: Doing Business / Business Ready (investor_protection_index)
+#   - S&P/IFC: Global Corporate Governance Scoreboard (board_independence, rpt_control)
+#   - OECD: Equity Market Regulation indicators (earnings_quality, fraud_enforcement)
+#   - MSCIs: Market Classification Framework (derivatives_depth, foreign_ownership_limit)
+#   - 各交易所官方: 佣金费率、结算周期、印花税/预扣税、做空规则
+#   - IOSCO: Objectives and Principles of Securities Regulation (accounting_standards)
+#   - 学术文献: Amihud (2002) illiquidity measure; correlation 来自 MSCI Barra
+#
+# ⚠️ 注意：这些指标为手动评估的近似值，不是实时API抓取的精确数据。
+#   评分框架反映的是市场制度质量的相对排序，而非精确计量。
+# ============================================================
+
+# ============================================================
 # 配置
 # ============================================================
 
@@ -106,11 +123,20 @@ def load_static_data():
 # ============================================================
 
 def score_info_aggregation(raw):
-    """维度一：信息聚合（权重 20%）"""
+    """维度一：信息聚合（权重 20%）
+    评估市场信息环境的成熟度：分析师覆盖、财报可预测性、做空约束、价格发现效率。
+    """
+    # sub1: 分析师覆盖深度（0-1）→ 直接线性映射到 0-100
     sub1 = raw.get("analyst_coverage_depth", 0.5) * 100
-    sub2 = clamp(100 - raw.get("earnings_surprise_std", 0.05) * 1600, 10, 100)
-    sub3 = 100 if raw.get("short_selling_allowed", False) else 30
+    # sub2: 财报意外标准差，越低越好
+    #   典型范围: 0.02(美/英) - 0.08(越南)，映射: 0.02→80, 0.05→35, 0.08→10
+    #   公式: 110 - std*1500，选取使中位数(0.035)约57.5分的斜率
+    sub2 = clamp(110 - raw.get("earnings_surprise_std", 0.05) * 1500, 10, 100)
+    sub3 = _short_selling_score(raw)
+    # sub4: 价格冲击比率（交易1%市值对价格的影响），越低越好
+    #   典型范围: 0.35(美) - 0.8(越南)，映射: 0.35→95, 0.5→80, 0.65→65
     sub4 = clamp(130 - raw.get("price_impact_ratio", 0.5) * 100, 10, 100)
+    # sub5: 市场效率指数（0-1），综合反映价格反映信息的速度
     sub5 = clamp(raw.get("market_efficiency_index", 0.5) * 100, 0, 100)
 
     score = round(sub1 * 0.20 + sub2 * 0.20 + sub3 * 0.15 + sub4 * 0.25 + sub5 * 0.20)
@@ -118,15 +144,37 @@ def score_info_aggregation(raw):
 
 
 def score_transaction_cost(raw):
-    """维度二：交易成本（权重 20%）"""
+    """维度二：交易成本（权重 20%）
+    评估交易摩擦：佣金、买卖价差、结算效率、税收、流动性。
+    """
+    # sub1: 综合交易费率（往返佣金+印花税等），越低越好
+    #   典型范围: 0.0005(美) - 0.003(越南)，映射: 0.0005→107→100, 0.0015→82, 0.003→45
+    #   公式: 120 - rate*25000，选取使中位数(0.001)得77.5分的斜率
     sub1 = clamp(120 - raw.get("total_commission_rate", 0.001) * 25000, 10, 100)
+    # sub2: 买卖价差(bps)，越窄越好
+    #   典型范围: 3(美) - 35(越南)，映射: 3→113→100, 8→102→100, 35→43
     sub2 = clamp(120 - raw.get("bid_ask_spread_bps", 10) * 2.2, 10, 100)
+    # sub3: 结算周期，T+0/T+1=100, T+2=75, T+3=45, T+4+=20
     sd = raw.get("settlement_days", 2)
     sub3 = 100 if sd <= 1 else (75 if sd <= 2 else (45 if sd <= 3 else 20))
+    # sub4: 股息预扣税，越低越好（影响跨国投资者的实际回报）
     sub4 = clamp((1 - raw.get("withholding_tax", 0.15)) * 100, 10, 100)
+    # sub5: 资本利得税，越低越好
+    #   映射: 0%→100, 10%→75, 20%→50, 30%→25, 36%→10
     sub5 = clamp(100 - raw.get("capital_gains_tax", 0.15) * 250, 10, 100)
+    # sub6: Amihud非流动性指标（价格冲击的学术度量）
+    #   基于对数分布: amihud=1e-11→100(极流动), amihud=5e-8→15(极不流动)
+    #   区间选择参考 Amihud (2002) 原文: 美股约1e-11, 新兴市场约1e-8到1e-7
     amihud = raw.get("amihud_illiquidity", 1e-9)
-    sub6 = clamp(100 - _log10_safe(amihud + 1e-12) * 20 - 60, 10, 100)
+    import math
+    log10_am = _log10_safe(amihud)
+    log10_min, log10_max = -11, math.log10(5e-8)
+    if log10_am <= log10_min:
+        sub6 = 100
+    elif log10_am >= log10_max:
+        sub6 = 15
+    else:
+        sub6 = clamp(100 - (log10_am - log10_min) / (log10_max - log10_min) * 85, 10, 100)
 
     score = round(sub1 * 0.15 + sub2 * 0.20 + sub3 * 0.10 + sub4 * 0.15
                   + sub5 * 0.15 + sub6 * 0.25)
@@ -138,7 +186,7 @@ def score_incentive_alignment(raw):
     sub1 = raw.get("shareholder_activism_score", 0.5) * 100
     sub2 = raw.get("board_independence_ratio", 0.6) * 100
     sub3 = raw.get("rpt_control_score", 0.6) * 100
-    sub4 = 100 if raw.get("short_selling_allowed", False) else 25
+    sub4 = _short_selling_score_incent(raw)
     sub5 = raw.get("earnings_quality_score", 0.6) * 100
     sub6 = raw.get("insider_trading_enforcement", 0.5) * 100
 
@@ -154,13 +202,13 @@ def score_risk_dispersion(raw):
     sub3 = raw.get("capital_flow_freedom", 0.7) * 100
     sub4 = raw.get("foreign_ownership_limit", 1.0) * 100
     sub5 = raw.get("etf_variety", 0.6) * 100
+    # correlation: 作为风险分散维度的一部分，衡量与全球市场的联动程度
+    # 低相关性 → 适度加分（有助于投资组合分散化）
+    # 高相关性 → 适度扣分（分散化价值较低，但代表信息充分、流动性好）
+    # 极低相关性 → 反而扣分（可能是市场封闭、信息隔离）
+    # 逻辑：0.3附近最优（有分散价值且信息流通），极端值都有问题
     corr = raw.get("correlation_with_global", 0.5)
-    if 0.4 <= corr <= 0.75:
-        sub6 = 90
-    elif corr < 0.4:
-        sub6 = 50
-    else:
-        sub6 = clamp(130 - corr * 70, 40, 90)
+    sub6 = clamp(100 - abs(corr - 0.35) * 100, 20, 100)
 
     score = round(sub1 * 0.20 + sub2 * 0.15 + sub3 * 0.20 + sub4 * 0.15
                   + sub5 * 0.15 + sub6 * 0.15)
@@ -168,10 +216,18 @@ def score_risk_dispersion(raw):
 
 
 def score_property_rights(raw):
-    """维度五：产权执行（权重 20%）"""
+    """维度五：产权执行（权重 20%）
+    评估法律环境对投资者权益的保护力度。
+    """
+    # sub1: 法治指数（World Bank WGI），0-1 → 0-100
     sub1 = raw.get("rule_of_law_index", 0.7) * 100
+    # sub2: 司法独立性（0-1）
     sub2 = raw.get("judicial_independence", 0.6) * 100
+    # sub3: 欺诈执法率（0-1），衡量对财务造假的追究力度
     sub3 = raw.get("fraud_enforcement_rate", 0.5) * 100
+    # sub4: 退市率，衡量市场新陈代谢能力
+    #   4%-8%为健康区间（美股约5-7%，参考WFE数据）
+    #   1%-4%偏低（有僵尸企业），<1%不健康，>8%可能过度
     dr = raw.get("delisting_rate", 0.01)
     if 0.04 <= dr <= 0.08:
         sub4 = 100
@@ -181,7 +237,9 @@ def score_property_rights(raw):
         sub4 = 40
     else:
         sub4 = 20
+    # sub5: 投资者保护指数（World Bank / S&P），1-10 → 10-100
     sub5 = raw.get("investor_protection_index", 5.0) * 10
+    # sub6: 会计准则质量（0-1），1.0=IFRS完全采用
     sub6 = raw.get("accounting_standards", 0.5) * 100
 
     score = round(sub1 * 0.20 + sub2 * 0.15 + sub3 * 0.15 + sub4 * 0.15
@@ -197,6 +255,125 @@ def _log10_safe(val):
     return math.log10(val)
 
 
+def _short_selling_score(raw):
+    """做空制度评分：full=100, restricted=55, prohibited=30。"""
+    eff = raw.get("short_selling_effectiveness", "full")
+    if raw.get("short_selling_allowed", False) and eff == "full":
+        return 100
+    elif eff == "restricted":
+        return 55
+    else:
+        return 30
+
+
+def _short_selling_score_incent(raw):
+    """做空制度评分（激励对齐维度用）：full=100, restricted=40, prohibited=25。"""
+    eff = raw.get("short_selling_effectiveness", "full")
+    if raw.get("short_selling_allowed", False) and eff == "full":
+        return 100
+    elif eff == "restricted":
+        return 40
+    else:
+        return 25
+
+
+# ============================================================
+# 快变量数据获取（PE/PB 等日间变化的估值指标）
+# ============================================================
+# 指数 → yfinance ticker 映射
+YFINANCE_TICKERS = {
+    "us_sp500": "^GSPC",
+    "jp": "^N225",
+    "gb": "^FTSE",
+    "de": "^GDAXI",
+    "fr": "^FCHI",
+    "au": "^AXJO",
+    "ca": "^GSPTSE",
+    "cn_ashare": "000300.SS",  # 沪深300
+    "cn_hk": "^HSI",
+    "kr": "^KS11",
+    "tw": "^TWII",
+    "in": "^NSEI",
+    "vn": "^VNINDEX",
+    "br": "^BVSP",
+}
+
+MULTPL_PAGES = {
+    "us_sp500_pe": "https://www.multpl.com/s-p-500-pe-ratio/table/by-month",
+    "us_sp500_cape": "https://www.multpl.com/shiller-pe/table/by-month",
+}
+
+FAST_VAR_CACHE = PROJECT_DIR / "data" / "fast_var_cache.json"
+
+
+def _fetch_multpl_current(url):
+    """从 multpl.com 的 meta description 提取当前值。"""
+    try:
+        r = requests.get(url, headers=HEADERS, timeout=15)
+        if r.status_code != 200:
+            return None
+        m = re.search(r'is ([\d.]+), a change', r.text)
+        return float(m.group(1)) if m else None
+    except Exception as e:
+        log(f"[WARN] multpl fetch failed: {e}")
+        return None
+
+
+def _fetch_yfinance_pe(ticker):
+    """尝试用 yfinance 获取 PE ratio。"""
+    try:
+        import yfinance as yf
+        t = yf.Ticker(ticker)
+        # 用 fast_info 避免 rate limit（比 .info 轻量）
+        pe = t.fast_info.get("previous_close", None)  # 先测试连接
+        # 快速方式不行就用 hist 获取收盘价
+        hist = t.history(period="5d")
+        if hist.empty:
+            return None, None
+        price = round(hist["Close"].iloc[-1], 2)
+        return None, price  # PE 暂不通过 yfinance 获取
+    except Exception as e:
+        log(f"[WARN] yfinance {ticker} failed: {e}")
+        return None, None
+
+
+def fetch_fast_variables():
+    """获取快变量数据（PE、价格等），优雅降级。"""
+    fast = {}
+
+    # 从 multpl.com 获取美股PE/CAPE（已验证：服务器可稳定访问）
+    # 其他市场快变量暂不可用（yfinance/东方财富/Google均被服务器IP限制）
+    # TODO: 当有住宅代理或CDN中转时可扩展
+
+    sp500_pe = _fetch_multpl_current(MULTPL_PAGES["us_sp500_pe"])
+    if sp500_pe:
+        fast["us_sp500"] = {"pe_ttm": sp500_pe, "pe_source": "multpl.com"}
+        log(f"  [fast] 美股 S&P 500 PE: {sp500_pe} (multpl.com)")
+
+    cape = _fetch_multpl_current(MULTPL_PAGES["us_sp500_cape"])
+    if cape:
+        fast.setdefault("us_sp500", {})["cape"] = cape
+        fast["us_sp500"]["cape_source"] = "multpl.com"
+        log(f"  [fast] 美股 Shiller CAPE: {cape} (multpl.com)")
+
+    return fast
+
+
+def load_fast_var_cache():
+    """加载上次快变量缓存，用于变化追踪。"""
+    if FAST_VAR_CACHE.exists():
+        with open(FAST_VAR_CACHE, encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
+def save_fast_var_cache(data):
+    """保存快变量缓存。"""
+    FAST_VAR_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    with open(FAST_VAR_CACHE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
 # ============================================================
 # 主函数
 # ============================================================
@@ -208,23 +385,33 @@ def main():
     trade_date = get_latest_trade_date()
     log(f"最近交易日: {trade_date}")
 
-    # 2. 检查是否已有当日数据
-    output_file = DATA_DIR / f"{trade_date}.json"
-    if output_file.exists():
-        log(f"当日数据已存在: {output_file}")
-        try:
-            existing = json.loads(output_file.read_text())
-            if len(existing.get("markets", [])) >= 14:
-                log("已有 14 个市场数据，跳过采集")
-                return
-        except Exception:
-            pass
-
-    # 3. 加载 static_data
+    # 2. 加载 static_data
     static = load_static_data()
     log(f"已加载 static_data ({len(static)} 个市场)")
 
-    # 4. 对每个市场计算评分
+    # 3. 获取快变量数据
+    log("获取快变量数据...")
+    fast_vars = fetch_fast_variables()
+    if fast_vars:
+        save_fast_var_cache({"date": trade_date, "data": fast_vars})
+        log(f"快变量: 获取到 {len(fast_vars)} 个市场")
+    else:
+        log("[WARN] 快变量全部获取失败，仅输出慢变量评分")
+
+    # 4. 加载上日数据用于变化追踪
+    prev_date = (datetime.strptime(trade_date, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+    prev_file = DATA_DIR / f"{prev_date}.json"
+    prev_scores = {}
+    if prev_file.exists():
+        with open(prev_file, encoding="utf-8") as f:
+            prev = json.load(f)
+        for m in prev.get("markets", []):
+            prev_scores[m["market"]] = {
+                "fish_score": m["fish_score"],
+                "date": prev_date,
+            }
+
+    # 5. 对每个市场计算评分
     entries = []
     for m in MARKETS:
         mid = m["market"]
@@ -256,6 +443,7 @@ def main():
             "property_rights":     {"score": dim_prop,  "weight": 0.20},
         }
 
+        # 构建entry
         entry = {
             "market": mid,
             "market_name": m["market_name"],
@@ -264,9 +452,28 @@ def main():
             "dimensions": dimensions,
             "raw_indicators": raw,
         }
+
+        # 添加快变量数据
+        if mid in fast_vars:
+            entry["fast_variables"] = fast_vars[mid]
+
+        # 变化追踪
+        if mid in prev_scores:
+            change = fish - prev_scores[mid]["fish_score"]
+            entry["change"] = {
+                "fish_score": change,
+                "prev_date": prev_scores[mid]["date"],
+                "prev_score": prev_scores[mid]["fish_score"],
+            }
+
         entries.append(entry)
 
-        log(f"  {m['market_name']:4s} | fish={fish:3d} | "
+        change_str = ""
+        if mid in prev_scores:
+            ch = fish - prev_scores[mid]["fish_score"]
+            arrow = "↑" if ch > 0 else ("↓" if ch < 0 else "=")
+            change_str = f" {arrow}{abs(ch)}"
+        log(f"  {m['market_name']:4s} | fish={fish:3d}{change_str} | "
             f"info={dim_info:3d} cost={dim_cost:3d} "
             f"incent={dim_incent:3d} risk={dim_risk:3d} prop={dim_prop:3d}")
 
@@ -274,18 +481,21 @@ def main():
         log("[FATAL] 没有成功生成任何市场数据")
         sys.exit(1)
 
-    # 5. 输出 JSON
+    # 6. 输出 JSON
     report = {
         "date": trade_date,
+        "generated_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "fast_var_count": len(fast_vars),
         "markets": entries,
     }
 
+    output_file = DATA_DIR / f"{trade_date}.json"
     output_file.parent.mkdir(parents=True, exist_ok=True)
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(report, f, ensure_ascii=False, indent=2)
     log(f"输出文件: {output_file} ({len(entries)} 个市场)")
 
-    # 6. git commit & push
+    # 7. git commit & push
     try:
         sp.run(["git", "add", str(output_file)], cwd=str(PROJECT_DIR),
                check=True, capture_output=True)
