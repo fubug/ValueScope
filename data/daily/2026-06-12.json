@@ -1,6 +1,6 @@
 {
   "date": "2026-06-12",
-  "generated_at": "2026-06-14T03:00:14",
+  "generated_at": "2026-06-14T08:07:08",
   "fast_var_count": 1,
   "markets": [
     {
@@ -238,7 +238,7 @@
         "bid_ask_spread_bps": 5.0,
         "settlement_days": 2,
         "withholding_tax": 0.15,
-        "capital_gains_tax": 0.26,
+        "capital_gains_tax": 0.26375,
         "amihud_illiquidity": 4e-10,
         "shareholder_activism_score": 0.7,
         "board_independence_ratio": 0.75,
@@ -589,10 +589,10 @@
       "market": "kr",
       "market_name": "韩国",
       "index_name": "KOSPI",
-      "fish_score": 64,
+      "fish_score": 68,
       "dimensions": {
         "info_aggregation": {
-          "score": 54,
+          "score": 65,
           "weight": 0.2
         },
         "transaction_cost": {
@@ -600,7 +600,7 @@
           "weight": 0.2
         },
         "incentive_alignment": {
-          "score": 48,
+          "score": 59,
           "weight": 0.2
         },
         "risk_dispersion": {
@@ -615,7 +615,7 @@
       "raw_indicators": {
         "analyst_coverage_depth": 0.6,
         "earnings_surprise_std": 0.04,
-        "short_selling_allowed": false,
+        "short_selling_allowed": true,
         "price_impact_ratio": 0.55,
         "market_efficiency_index": 0.45,
         "total_commission_rate": 0.0015,
@@ -641,10 +641,10 @@
         "delisting_rate": 0.01,
         "investor_protection_index": 6.2,
         "accounting_standards": 1.0,
-        "short_selling_effectiveness": "prohibited"
+        "short_selling_effectiveness": "full"
       },
       "change": {
-        "fish_score": 0,
+        "fish_score": 4,
         "prev_date": "2026-06-11",
         "prev_score": 64
       }
@@ -717,10 +717,10 @@
       "market": "in",
       "market_name": "印度",
       "index_name": "Nifty 50",
-      "fish_score": 55,
+      "fish_score": 59,
       "dimensions": {
         "info_aggregation": {
-          "score": 51,
+          "score": 58,
           "weight": 0.2
         },
         "transaction_cost": {
@@ -728,11 +728,11 @@
           "weight": 0.2
         },
         "incentive_alignment": {
-          "score": 39,
+          "score": 48,
           "weight": 0.2
         },
         "risk_dispersion": {
-          "score": 59,
+          "score": 64,
           "weight": 0.2
         },
         "property_rights": {
@@ -760,8 +760,7 @@
         "derivatives_depth": 0.35,
         "options_available": true,
         "capital_flow_freedom": 0.55,
-        "foreign_ownership_limit": 0.3,
-        "etf_variety": 0.45,
+        "foreign_ownership_limit": 0.49,
         "correlation_with_global": 0.35,
         "rule_of_law_index": 0.55,
         "judicial_independence": 0.5,
@@ -769,10 +768,10 @@
         "delisting_rate": 0.015,
         "investor_protection_index": 4.5,
         "accounting_standards": 0.5,
-        "short_selling_effectiveness": "restricted"
+        "short_selling_effectiveness": "full"
       },
       "change": {
-        "fish_score": 0,
+        "fish_score": 4,
         "prev_date": "2026-06-11",
         "prev_score": 55
       }
