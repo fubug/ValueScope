@@ -1,0 +1,908 @@
+{
+  "date": "2026-07-03",
+  "generated_at": "2026-07-04T03:04:01",
+  "fast_var_count": 1,
+  "markets": [
+    {
+      "market": "us_sp500",
+      "market_name": "美国",
+      "index_name": "S&P 500",
+      "fish_score": 92,
+      "dimensions": {
+        "info_aggregation": {
+          "score": 89,
+          "weight": 0.2
+        },
+        "transaction_cost": {
+          "score": 98,
+          "weight": 0.2
+        },
+        "incentive_alignment": {
+          "score": 89,
+          "weight": 0.2
+        },
+        "risk_dispersion": {
+          "score": 91,
+          "weight": 0.2
+        },
+        "property_rights": {
+          "score": 91,
+          "weight": 0.2
+        }
+      },
+      "raw_indicators": {
+        "analyst_coverage_depth": 0.95,
+        "earnings_surprise_std": 0.02,
+        "short_selling_allowed": true,
+        "price_impact_ratio": 0.35,
+        "market_efficiency_index": 0.75,
+        "total_commission_rate": 0.0005,
+        "bid_ask_spread_bps": 3.0,
+        "settlement_days": 1,
+        "withholding_tax": 0.1,
+        "capital_gains_tax": 0.0,
+        "amihud_illiquidity": 1e-11,
+        "shareholder_activism_score": 0.9,
+        "board_independence_ratio": 0.85,
+        "rpt_control_score": 0.85,
+        "earnings_quality_score": 0.85,
+        "insider_trading_enforcement": 0.9,
+        "derivatives_depth": 0.95,
+        "options_available": true,
+        "capital_flow_freedom": 1.0,
+        "foreign_ownership_limit": 1.0,
+        "etf_variety": 0.95,
+        "correlation_with_global": 0.85,
+        "rule_of_law_index": 0.9,
+        "judicial_independence": 0.88,
+        "fraud_enforcement_rate": 0.9,
+        "delisting_rate": 0.055,
+        "investor_protection_index": 8.3,
+        "accounting_standards": 1.0,
+        "short_selling_effectiveness": "full"
+      },
+      "fast_variables": {
+        "pe_ttm": 32.15,
+        "pe_source": "multpl.com",
+        "cape": 41.6,
+        "cape_source": "multpl.com"
+      },
+      "change": {
+        "fish_score": 0,
+        "prev_date": "2026-07-02",
+        "prev_score": 92
+      }
+    },
+    {
+      "market": "jp",
+      "market_name": "日本",
+      "index_name": "日经225",
+      "fish_score": 77,
+      "dimensions": {
+        "info_aggregation": {
+          "score": 74,
+          "weight": 0.2
+        },
+        "transaction_cost": {
+          "score": 77,
+          "weight": 0.2
+        },
+        "incentive_alignment": {
+          "score": 70,
+          "weight": 0.2
+        },
+        "risk_dispersion": {
+          "score": 87,
+          "weight": 0.2
+        },
+        "property_rights": {
+          "score": 79,
+          "weight": 0.2
+        }
+      },
+      "raw_indicators": {
+        "analyst_coverage_depth": 0.75,
+        "earnings_surprise_std": 0.035,
+        "short_selling_allowed": true,
+        "price_impact_ratio": 0.5,
+        "market_efficiency_index": 0.6,
+        "total_commission_rate": 0.001,
+        "bid_ask_spread_bps": 5.0,
+        "settlement_days": 2,
+        "withholding_tax": 0.15,
+        "capital_gains_tax": 0.2,
+        "amihud_illiquidity": 5e-10,
+        "shareholder_activism_score": 0.5,
+        "board_independence_ratio": 0.6,
+        "rpt_control_score": 0.7,
+        "earnings_quality_score": 0.75,
+        "insider_trading_enforcement": 0.65,
+        "derivatives_depth": 0.75,
+        "options_available": true,
+        "capital_flow_freedom": 0.95,
+        "foreign_ownership_limit": 1.0,
+        "etf_variety": 0.8,
+        "correlation_with_global": 0.6,
+        "rule_of_law_index": 0.85,
+        "judicial_independence": 0.8,
+        "fraud_enforcement_rate": 0.7,
+        "delisting_rate": 0.02,
+        "investor_protection_index": 7.1,
+        "accounting_standards": 1.0,
+        "short_selling_effectiveness": "full"
+      },
+      "change": {
+        "fish_score": 0,
+        "prev_date": "2026-07-02",
+        "prev_score": 77
+      }
+    },
+    {
+      "market": "gb",
+      "market_name": "英国",
+      "index_name": "FTSE 100",
+      "fish_score": 84,
+      "dimensions": {
+        "info_aggregation": {
+          "score": 80,
+          "weight": 0.2
+        },
+        "transaction_cost": {
+          "score": 81,
+          "weight": 0.2
+        },
+        "incentive_alignment": {
+          "score": 84,
+          "weight": 0.2
+        },
+        "risk_dispersion": {
+          "score": 88,
+          "weight": 0.2
+        },
+        "property_rights": {
+          "score": 85,
+          "weight": 0.2
+        }
+      },
+      "raw_indicators": {
+        "analyst_coverage_depth": 0.8,
+        "earnings_surprise_std": 0.025,
+        "short_selling_allowed": true,
+        "price_impact_ratio": 0.45,
+        "market_efficiency_index": 0.65,
+        "total_commission_rate": 0.001,
+        "bid_ask_spread_bps": 4.0,
+        "settlement_days": 2,
+        "withholding_tax": 0.0,
+        "capital_gains_tax": 0.2,
+        "amihud_illiquidity": 3e-10,
+        "shareholder_activism_score": 0.8,
+        "board_independence_ratio": 0.8,
+        "rpt_control_score": 0.85,
+        "earnings_quality_score": 0.8,
+        "insider_trading_enforcement": 0.8,
+        "derivatives_depth": 0.8,
+        "options_available": true,
+        "capital_flow_freedom": 0.95,
+        "foreign_ownership_limit": 1.0,
+        "etf_variety": 0.85,
+        "correlation_with_global": 0.7,
+        "rule_of_law_index": 0.9,
+        "judicial_independence": 0.88,
+        "fraud_enforcement_rate": 0.8,
+        "delisting_rate": 0.035,
+        "investor_protection_index": 8.0,
+        "accounting_standards": 1.0,
+        "short_selling_effectiveness": "full"
+      },
+      "change": {
+        "fish_score": 0,
+        "prev_date": "2026-07-02",
+        "prev_score": 84
+      }
+    },
+    {
+      "market": "de",
+      "market_name": "德国",
+      "index_name": "DAX",
+      "fish_score": 81,
+      "dimensions": {
+        "info_aggregation": {
+          "score": 80,
+          "weight": 0.2
+        },
+        "transaction_cost": {
+          "score": 75,
+          "weight": 0.2
+        },
+        "incentive_alignment": {
+          "score": 80,
+          "weight": 0.2
+        },
+        "risk_dispersion": {
+          "score": 86,
+          "weight": 0.2
+        },
+        "property_rights": {
+          "score": 86,
+          "weight": 0.2
+        }
+      },
+      "raw_indicators": {
+        "analyst_coverage_depth": 0.8,
+        "earnings_surprise_std": 0.025,
+        "short_selling_allowed": true,
+        "price_impact_ratio": 0.45,
+        "market_efficiency_index": 0.65,
+        "total_commission_rate": 0.0012,
+        "bid_ask_spread_bps": 5.0,
+        "settlement_days": 2,
+        "withholding_tax": 0.15,
+        "capital_gains_tax": 0.26375,
+        "amihud_illiquidity": 4e-10,
+        "shareholder_activism_score": 0.7,
+        "board_independence_ratio": 0.75,
+        "rpt_control_score": 0.8,
+        "earnings_quality_score": 0.8,
+        "insider_trading_enforcement": 0.75,
+        "derivatives_depth": 0.75,
+        "options_available": true,
+        "capital_flow_freedom": 0.95,
+        "foreign_ownership_limit": 1.0,
+        "etf_variety": 0.85,
+        "correlation_with_global": 0.72,
+        "rule_of_law_index": 0.92,
+        "judicial_independence": 0.9,
+        "fraud_enforcement_rate": 0.8,
+        "delisting_rate": 0.03,
+        "investor_protection_index": 8.2,
+        "accounting_standards": 1.0,
+        "short_selling_effectiveness": "full"
+      },
+      "change": {
+        "fish_score": 0,
+        "prev_date": "2026-07-02",
+        "prev_score": 81
+      }
+    },
+    {
+      "market": "fr",
+      "market_name": "法国",
+      "index_name": "CAC 40",
+      "fish_score": 78,
+      "dimensions": {
+        "info_aggregation": {
+          "score": 75,
+          "weight": 0.2
+        },
+        "transaction_cost": {
+          "score": 73,
+          "weight": 0.2
+        },
+        "incentive_alignment": {
+          "score": 76,
+          "weight": 0.2
+        },
+        "risk_dispersion": {
+          "score": 85,
+          "weight": 0.2
+        },
+        "property_rights": {
+          "score": 82,
+          "weight": 0.2
+        }
+      },
+      "raw_indicators": {
+        "analyst_coverage_depth": 0.75,
+        "earnings_surprise_std": 0.03,
+        "short_selling_allowed": true,
+        "price_impact_ratio": 0.5,
+        "market_efficiency_index": 0.6,
+        "total_commission_rate": 0.0012,
+        "bid_ask_spread_bps": 5.0,
+        "settlement_days": 2,
+        "withholding_tax": 0.15,
+        "capital_gains_tax": 0.3,
+        "amihud_illiquidity": 5e-10,
+        "shareholder_activism_score": 0.65,
+        "board_independence_ratio": 0.7,
+        "rpt_control_score": 0.75,
+        "earnings_quality_score": 0.75,
+        "insider_trading_enforcement": 0.7,
+        "derivatives_depth": 0.7,
+        "options_available": true,
+        "capital_flow_freedom": 0.95,
+        "foreign_ownership_limit": 1.0,
+        "etf_variety": 0.8,
+        "correlation_with_global": 0.7,
+        "rule_of_law_index": 0.87,
+        "judicial_independence": 0.82,
+        "fraud_enforcement_rate": 0.75,
+        "delisting_rate": 0.025,
+        "investor_protection_index": 7.8,
+        "accounting_standards": 1.0,
+        "short_selling_effectiveness": "full"
+      },
+      "change": {
+        "fish_score": 0,
+        "prev_date": "2026-07-02",
+        "prev_score": 78
+      }
+    },
+    {
+      "market": "au",
+      "market_name": "澳洲",
+      "index_name": "ASX 200",
+      "fish_score": 82,
+      "dimensions": {
+        "info_aggregation": {
+          "score": 73,
+          "weight": 0.2
+        },
+        "transaction_cost": {
+          "score": 85,
+          "weight": 0.2
+        },
+        "incentive_alignment": {
+          "score": 80,
+          "weight": 0.2
+        },
+        "risk_dispersion": {
+          "score": 82,
+          "weight": 0.2
+        },
+        "property_rights": {
+          "score": 90,
+          "weight": 0.2
+        }
+      },
+      "raw_indicators": {
+        "analyst_coverage_depth": 0.7,
+        "earnings_surprise_std": 0.03,
+        "short_selling_allowed": true,
+        "price_impact_ratio": 0.5,
+        "market_efficiency_index": 0.55,
+        "total_commission_rate": 0.001,
+        "bid_ask_spread_bps": 5.0,
+        "settlement_days": 2,
+        "withholding_tax": 0.15,
+        "capital_gains_tax": 0.0,
+        "amihud_illiquidity": 4e-10,
+        "shareholder_activism_score": 0.7,
+        "board_independence_ratio": 0.75,
+        "rpt_control_score": 0.8,
+        "earnings_quality_score": 0.78,
+        "insider_trading_enforcement": 0.75,
+        "derivatives_depth": 0.6,
+        "options_available": true,
+        "capital_flow_freedom": 0.9,
+        "foreign_ownership_limit": 1.0,
+        "etf_variety": 0.7,
+        "correlation_with_global": 0.6,
+        "rule_of_law_index": 0.93,
+        "judicial_independence": 0.9,
+        "fraud_enforcement_rate": 0.8,
+        "delisting_rate": 0.04,
+        "investor_protection_index": 8.2,
+        "accounting_standards": 1.0,
+        "short_selling_effectiveness": "full"
+      },
+      "change": {
+        "fish_score": 0,
+        "prev_date": "2026-07-02",
+        "prev_score": 82
+      }
+    },
+    {
+      "market": "ca",
+      "market_name": "加拿大",
+      "index_name": "S&P/TSX",
+      "fish_score": 84,
+      "dimensions": {
+        "info_aggregation": {
+          "score": 77,
+          "weight": 0.2
+        },
+        "transaction_cost": {
+          "score": 86,
+          "weight": 0.2
+        },
+        "incentive_alignment": {
+          "score": 82,
+          "weight": 0.2
+        },
+        "risk_dispersion": {
+          "score": 83,
+          "weight": 0.2
+        },
+        "property_rights": {
+          "score": 91,
+          "weight": 0.2
+        }
+      },
+      "raw_indicators": {
+        "analyst_coverage_depth": 0.75,
+        "earnings_surprise_std": 0.028,
+        "short_selling_allowed": true,
+        "price_impact_ratio": 0.45,
+        "market_efficiency_index": 0.6,
+        "total_commission_rate": 0.001,
+        "bid_ask_spread_bps": 4.0,
+        "settlement_days": 2,
+        "withholding_tax": 0.15,
+        "capital_gains_tax": 0.0,
+        "amihud_illiquidity": 3e-10,
+        "shareholder_activism_score": 0.75,
+        "board_independence_ratio": 0.8,
+        "rpt_control_score": 0.8,
+        "earnings_quality_score": 0.8,
+        "insider_trading_enforcement": 0.78,
+        "derivatives_depth": 0.65,
+        "options_available": true,
+        "capital_flow_freedom": 0.95,
+        "foreign_ownership_limit": 1.0,
+        "etf_variety": 0.75,
+        "correlation_with_global": 0.72,
+        "rule_of_law_index": 0.93,
+        "judicial_independence": 0.9,
+        "fraud_enforcement_rate": 0.82,
+        "delisting_rate": 0.04,
+        "investor_protection_index": 8.3,
+        "accounting_standards": 1.0,
+        "short_selling_effectiveness": "full"
+      },
+      "change": {
+        "fish_score": 0,
+        "prev_date": "2026-07-02",
+        "prev_score": 84
+      }
+    },
+    {
+      "market": "cn_ashare",
+      "market_name": "A股",
+      "index_name": "沪深300",
+      "fish_score": 53,
+      "dimensions": {
+        "info_aggregation": {
+          "score": 46,
+          "weight": 0.2
+        },
+        "transaction_cost": {
+          "score": 82,
+          "weight": 0.2
+        },
+        "incentive_alignment": {
+          "score": 34,
+          "weight": 0.2
+        },
+        "risk_dispersion": {
+          "score": 56,
+          "weight": 0.2
+        },
+        "property_rights": {
+          "score": 47,
+          "weight": 0.2
+        }
+      },
+      "raw_indicators": {
+        "analyst_coverage_depth": 0.55,
+        "earnings_surprise_std": 0.06,
+        "short_selling_allowed": false,
+        "price_impact_ratio": 0.65,
+        "market_efficiency_index": 0.35,
+        "total_commission_rate": 0.0016,
+        "bid_ask_spread_bps": 8.0,
+        "settlement_days": 1,
+        "withholding_tax": 0.1,
+        "capital_gains_tax": 0.0,
+        "amihud_illiquidity": 2e-09,
+        "shareholder_activism_score": 0.15,
+        "board_independence_ratio": 0.4,
+        "rpt_control_score": 0.35,
+        "earnings_quality_score": 0.4,
+        "insider_trading_enforcement": 0.3,
+        "derivatives_depth": 0.3,
+        "options_available": true,
+        "capital_flow_freedom": 0.5,
+        "foreign_ownership_limit": 0.3,
+        "etf_variety": 0.5,
+        "correlation_with_global": 0.25,
+        "rule_of_law_index": 0.5,
+        "judicial_independence": 0.35,
+        "fraud_enforcement_rate": 0.3,
+        "delisting_rate": 0.01,
+        "investor_protection_index": 4.6,
+        "accounting_standards": 0.5,
+        "short_selling_effectiveness": "restricted"
+      },
+      "change": {
+        "fish_score": 0,
+        "prev_date": "2026-07-02",
+        "prev_score": 53
+      }
+    },
+    {
+      "market": "cn_hk",
+      "market_name": "港股",
+      "index_name": "恒生指数",
+      "fish_score": 78,
+      "dimensions": {
+        "info_aggregation": {
+          "score": 72,
+          "weight": 0.2
+        },
+        "transaction_cost": {
+          "score": 89,
+          "weight": 0.2
+        },
+        "incentive_alignment": {
+          "score": 68,
+          "weight": 0.2
+        },
+        "risk_dispersion": {
+          "score": 82,
+          "weight": 0.2
+        },
+        "property_rights": {
+          "score": 78,
+          "weight": 0.2
+        }
+      },
+      "raw_indicators": {
+        "analyst_coverage_depth": 0.7,
+        "earnings_surprise_std": 0.035,
+        "short_selling_allowed": true,
+        "price_impact_ratio": 0.5,
+        "market_efficiency_index": 0.55,
+        "total_commission_rate": 0.0008,
+        "bid_ask_spread_bps": 5.0,
+        "settlement_days": 2,
+        "withholding_tax": 0.0,
+        "capital_gains_tax": 0.0,
+        "amihud_illiquidity": 3e-10,
+        "shareholder_activism_score": 0.55,
+        "board_independence_ratio": 0.65,
+        "rpt_control_score": 0.65,
+        "earnings_quality_score": 0.65,
+        "insider_trading_enforcement": 0.6,
+        "derivatives_depth": 0.55,
+        "options_available": true,
+        "capital_flow_freedom": 0.9,
+        "foreign_ownership_limit": 1.0,
+        "etf_variety": 0.7,
+        "correlation_with_global": 0.55,
+        "rule_of_law_index": 0.8,
+        "judicial_independence": 0.78,
+        "fraud_enforcement_rate": 0.65,
+        "delisting_rate": 0.015,
+        "investor_protection_index": 7.3,
+        "accounting_standards": 1.0,
+        "short_selling_effectiveness": "full"
+      },
+      "change": {
+        "fish_score": 0,
+        "prev_date": "2026-07-02",
+        "prev_score": 78
+      }
+    },
+    {
+      "market": "kr",
+      "market_name": "韩国",
+      "index_name": "KOSPI",
+      "fish_score": 68,
+      "dimensions": {
+        "info_aggregation": {
+          "score": 65,
+          "weight": 0.2
+        },
+        "transaction_cost": {
+          "score": 73,
+          "weight": 0.2
+        },
+        "incentive_alignment": {
+          "score": 59,
+          "weight": 0.2
+        },
+        "risk_dispersion": {
+          "score": 75,
+          "weight": 0.2
+        },
+        "property_rights": {
+          "score": 70,
+          "weight": 0.2
+        }
+      },
+      "raw_indicators": {
+        "analyst_coverage_depth": 0.6,
+        "earnings_surprise_std": 0.04,
+        "short_selling_allowed": true,
+        "price_impact_ratio": 0.55,
+        "market_efficiency_index": 0.45,
+        "total_commission_rate": 0.0015,
+        "bid_ask_spread_bps": 8.0,
+        "settlement_days": 2,
+        "withholding_tax": 0.15,
+        "capital_gains_tax": 0.22,
+        "amihud_illiquidity": 8e-10,
+        "shareholder_activism_score": 0.35,
+        "board_independence_ratio": 0.55,
+        "rpt_control_score": 0.6,
+        "earnings_quality_score": 0.55,
+        "insider_trading_enforcement": 0.5,
+        "derivatives_depth": 0.5,
+        "options_available": true,
+        "capital_flow_freedom": 0.7,
+        "foreign_ownership_limit": 1.0,
+        "etf_variety": 0.6,
+        "correlation_with_global": 0.55,
+        "rule_of_law_index": 0.72,
+        "judicial_independence": 0.65,
+        "fraud_enforcement_rate": 0.55,
+        "delisting_rate": 0.01,
+        "investor_protection_index": 6.2,
+        "accounting_standards": 1.0,
+        "short_selling_effectiveness": "full"
+      },
+      "change": {
+        "fish_score": 0,
+        "prev_date": "2026-07-02",
+        "prev_score": 68
+      }
+    },
+    {
+      "market": "tw",
+      "market_name": "台湾",
+      "index_name": "加权指数",
+      "fish_score": 69,
+      "dimensions": {
+        "info_aggregation": {
+          "score": 66,
+          "weight": 0.2
+        },
+        "transaction_cost": {
+          "score": 76,
+          "weight": 0.2
+        },
+        "incentive_alignment": {
+          "score": 59,
+          "weight": 0.2
+        },
+        "risk_dispersion": {
+          "score": 74,
+          "weight": 0.2
+        },
+        "property_rights": {
+          "score": 69,
+          "weight": 0.2
+        }
+      },
+      "raw_indicators": {
+        "analyst_coverage_depth": 0.65,
+        "earnings_surprise_std": 0.038,
+        "short_selling_allowed": true,
+        "price_impact_ratio": 0.55,
+        "market_efficiency_index": 0.45,
+        "total_commission_rate": 0.001425,
+        "bid_ask_spread_bps": 7.0,
+        "settlement_days": 2,
+        "withholding_tax": 0.2,
+        "capital_gains_tax": 0.15,
+        "amihud_illiquidity": 6e-10,
+        "shareholder_activism_score": 0.4,
+        "board_independence_ratio": 0.55,
+        "rpt_control_score": 0.55,
+        "earnings_quality_score": 0.55,
+        "insider_trading_enforcement": 0.5,
+        "derivatives_depth": 0.5,
+        "options_available": true,
+        "capital_flow_freedom": 0.7,
+        "foreign_ownership_limit": 1.0,
+        "etf_variety": 0.6,
+        "correlation_with_global": 0.6,
+        "rule_of_law_index": 0.75,
+        "judicial_independence": 0.7,
+        "fraud_enforcement_rate": 0.55,
+        "delisting_rate": 0.008,
+        "investor_protection_index": 7.0,
+        "accounting_standards": 1.0,
+        "short_selling_effectiveness": "full"
+      },
+      "change": {
+        "fish_score": 0,
+        "prev_date": "2026-07-02",
+        "prev_score": 69
+      }
+    },
+    {
+      "market": "in",
+      "market_name": "印度",
+      "index_name": "Nifty 50",
+      "fish_score": 59,
+      "dimensions": {
+        "info_aggregation": {
+          "score": 58,
+          "weight": 0.2
+        },
+        "transaction_cost": {
+          "score": 74,
+          "weight": 0.2
+        },
+        "incentive_alignment": {
+          "score": 48,
+          "weight": 0.2
+        },
+        "risk_dispersion": {
+          "score": 64,
+          "weight": 0.2
+        },
+        "property_rights": {
+          "score": 52,
+          "weight": 0.2
+        }
+      },
+      "raw_indicators": {
+        "analyst_coverage_depth": 0.5,
+        "earnings_surprise_std": 0.05,
+        "short_selling_allowed": true,
+        "price_impact_ratio": 0.6,
+        "market_efficiency_index": 0.4,
+        "total_commission_rate": 0.002,
+        "bid_ask_spread_bps": 10.0,
+        "settlement_days": 2,
+        "withholding_tax": 0.15,
+        "capital_gains_tax": 0.1,
+        "amihud_illiquidity": 1.5e-09,
+        "shareholder_activism_score": 0.25,
+        "board_independence_ratio": 0.45,
+        "rpt_control_score": 0.4,
+        "earnings_quality_score": 0.45,
+        "insider_trading_enforcement": 0.35,
+        "derivatives_depth": 0.35,
+        "options_available": true,
+        "capital_flow_freedom": 0.55,
+        "foreign_ownership_limit": 0.49,
+        "correlation_with_global": 0.35,
+        "rule_of_law_index": 0.55,
+        "judicial_independence": 0.5,
+        "fraud_enforcement_rate": 0.4,
+        "delisting_rate": 0.015,
+        "investor_protection_index": 4.5,
+        "accounting_standards": 0.5,
+        "short_selling_effectiveness": "full"
+      },
+      "change": {
+        "fish_score": 0,
+        "prev_date": "2026-07-02",
+        "prev_score": 59
+      }
+    },
+    {
+      "market": "vn",
+      "market_name": "越南",
+      "index_name": "VN-Index",
+      "fish_score": 33,
+      "dimensions": {
+        "info_aggregation": {
+          "score": 27,
+          "weight": 0.2
+        },
+        "transaction_cost": {
+          "score": 53,
+          "weight": 0.2
+        },
+        "incentive_alignment": {
+          "score": 20,
+          "weight": 0.2
+        },
+        "risk_dispersion": {
+          "score": 34,
+          "weight": 0.2
+        },
+        "property_rights": {
+          "score": 33,
+          "weight": 0.2
+        }
+      },
+      "raw_indicators": {
+        "analyst_coverage_depth": 0.2,
+        "earnings_surprise_std": 0.08,
+        "short_selling_allowed": false,
+        "price_impact_ratio": 0.8,
+        "market_efficiency_index": 0.2,
+        "total_commission_rate": 0.003,
+        "bid_ask_spread_bps": 35.0,
+        "settlement_days": 3,
+        "withholding_tax": 0.05,
+        "capital_gains_tax": 0.0,
+        "amihud_illiquidity": 5e-08,
+        "shareholder_activism_score": 0.05,
+        "board_independence_ratio": 0.25,
+        "rpt_control_score": 0.2,
+        "earnings_quality_score": 0.25,
+        "insider_trading_enforcement": 0.15,
+        "derivatives_depth": 0.05,
+        "options_available": false,
+        "capital_flow_freedom": 0.35,
+        "foreign_ownership_limit": 0.49,
+        "etf_variety": 0.15,
+        "correlation_with_global": 0.25,
+        "rule_of_law_index": 0.4,
+        "judicial_independence": 0.3,
+        "fraud_enforcement_rate": 0.2,
+        "delisting_rate": 0.002,
+        "investor_protection_index": 3.5,
+        "accounting_standards": 0.3,
+        "short_selling_effectiveness": "prohibited"
+      },
+      "change": {
+        "fish_score": 0,
+        "prev_date": "2026-07-02",
+        "prev_score": 33
+      }
+    },
+    {
+      "market": "br",
+      "market_name": "巴西",
+      "index_name": "Bovespa",
+      "fish_score": 59,
+      "dimensions": {
+        "info_aggregation": {
+          "score": 56,
+          "weight": 0.2
+        },
+        "transaction_cost": {
+          "score": 73,
+          "weight": 0.2
+        },
+        "incentive_alignment": {
+          "score": 50,
+          "weight": 0.2
+        },
+        "risk_dispersion": {
+          "score": 71,
+          "weight": 0.2
+        },
+        "property_rights": {
+          "score": 47,
+          "weight": 0.2
+        }
+      },
+      "raw_indicators": {
+        "analyst_coverage_depth": 0.5,
+        "earnings_surprise_std": 0.055,
+        "short_selling_allowed": true,
+        "price_impact_ratio": 0.6,
+        "market_efficiency_index": 0.4,
+        "total_commission_rate": 0.002,
+        "bid_ask_spread_bps": 12.0,
+        "settlement_days": 2,
+        "withholding_tax": 0.0,
+        "capital_gains_tax": 0.15,
+        "amihud_illiquidity": 2e-09,
+        "shareholder_activism_score": 0.3,
+        "board_independence_ratio": 0.45,
+        "rpt_control_score": 0.45,
+        "earnings_quality_score": 0.45,
+        "insider_trading_enforcement": 0.4,
+        "derivatives_depth": 0.4,
+        "options_available": true,
+        "capital_flow_freedom": 0.65,
+        "foreign_ownership_limit": 1.0,
+        "etf_variety": 0.5,
+        "correlation_with_global": 0.5,
+        "rule_of_law_index": 0.5,
+        "judicial_independence": 0.45,
+        "fraud_enforcement_rate": 0.45,
+        "delisting_rate": 0.008,
+        "investor_protection_index": 5.2,
+        "accounting_standards": 0.5,
+        "short_selling_effectiveness": "full"
+      },
+      "change": {
+        "fish_score": 0,
+        "prev_date": "2026-07-02",
+        "prev_score": 59
+      }
+    }
+  ]
+}
