@@ -1,6 +1,6 @@
 {
   "date": "2026-08-07",
-  "generated_at": "2026-08-08T03:00:44",
+  "generated_at": "2026-08-09T03:00:57",
   "fast_var_count": 1,
   "markets": [
     {
@@ -62,9 +62,9 @@
         "short_selling_effectiveness": "full"
       },
       "fast_variables": {
-        "pe_ttm": 29.69,
+        "pe_ttm": 29.88,
         "pe_source": "multpl.com",
-        "cape": 42.12,
+        "cape": 42.39,
         "cape_source": "multpl.com"
       },
       "change": {
