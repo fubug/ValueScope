@@ -11,7 +11,6 @@ export function getStaticPaths() {
 }
 
 const data = stocksData as unknown as StocksFile;
-
 const { s } = Astro.props as { s: Stock };
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const mos = marginOfSafety(s);
@@ -20,6 +19,14 @@ const mosColor = mos == null ? 'var(--dim)' : mos >= 0.2 ? 'var(--cheap)' : mos 
 const upsideToMid = s.price != null && s.fairValue.mid != null && s.price > 0
   ? ((s.fairValue.mid - s.price) / s.price) * 100
   : null;
+
+const d = s.deepDive;
+const sigColor = (sig: 'good' | 'neutral' | 'bad') =>
+  sig === 'good' ? 'var(--cheap)' : sig === 'bad' ? 'var(--expensive)' : 'var(--muted)';
+const sigLabel = { good: '偏正面', neutral: '中性', bad: '偏负面' } as const;
+const fmtNum = (v: number | null | undefined, d2 = 2) => (v == null ? '—' : v.toFixed(d2));
+const yoyColor = (v: number | null | undefined) =>
+  v == null ? 'var(--dim)' : v > 0 ? 'var(--up)' : v < 0 ? 'var(--down)' : 'var(--muted)';
 ---
 <Base title={`${s.name} ${s.ticker}`}>
   <p class="small" style="margin-bottom:8px">
@@ -28,11 +35,19 @@ const upsideToMid = s.price != null && s.fairValue.mid != null && s.price > 0
 
   <h1>{s.name} <span class="mono dim" style="font-size:16px;font-weight:400">{s.exchange} {s.ticker}</span></h1>
   <p class="lede">
-    {s.sector} · 复盘日 {s.lastReviewed} · 价格数据 {s.priceAsOf ?? '—'}
+    {s.sector} · 复盘日 {s.lastReviewed} · 价格 {s.priceAsOf ?? '—'}
     {s.sample && <> · <span class="badge unknown">示例数据，勿用于决策</span></>}
+    {d && <> · <span class="badge cheap">深度调研</span></>}
   </p>
 
-  <div class="grid grid-3" style="margin-top:20px">
+  {d && (
+    <div class="card" style="margin-top:18px;border-color:rgba(110,168,254,.3);background:rgba(110,168,254,.05)">
+      <div class="small" style="color:var(--accent);margin-bottom:6px;letter-spacing:.03em">你在赌什么</div>
+      <p style="margin:0;font-size:15px;line-height:1.75">{d.whatYouBet}</p>
+    </div>
+  )}
+
+  <div class="grid grid-3" style="margin-top:16px">
     <div class="card">
       <div class="kv"><span class="k">现价</span><span class={`v ${s.price == null ? 'na' : ''}`}>{s.price == null ? '待录入' : s.price.toFixed(2)}</span></div>
     </div>
@@ -58,13 +73,13 @@ const upsideToMid = s.price != null && s.fairValue.mid != null && s.price > 0
     <div class="stat-row">
       <div class="kv"><span class="k">状态</span><span style="margin-top:2px"><span class={`badge ${s.status}`}>{STATUS_LABEL[s.status]}</span></span></div>
       <div class="kv"><span class="k">买入区间</span><span class={`v ${s.buyZone.normal == null ? 'na' : ''}`}>{s.buyZone.normal == null ? '待录入' : s.buyZone.normal}</span><span class="sub">激进 {s.buyZone.aggressive ?? '—'}</span></div>
-      <div class="kv"><span class="k">PE</span><span class={`v ${s.valuation.peTtm == null ? 'na' : ''}`}>{s.valuation.peTtm ?? '—'}</span></div>
+      <div class="kv"><span class="k">PE (TTM)</span><span class={`v ${s.valuation.peTtm == null ? 'na' : ''}`}>{s.valuation.peTtm ?? '—'}</span></div>
       <div class="kv"><span class="k">PB</span><span class={`v ${s.valuation.pb == null ? 'na' : ''}`}>{s.valuation.pb ?? '—'}</span></div>
       <div class="kv"><span class="k">股息率</span><span class={`v ${s.valuation.dividendYield == null ? 'na' : ''}`}>{s.valuation.dividendYield == null ? '—' : `${s.valuation.dividendYield}%`}</span></div>
     </div>
   </div>
 
-  <div class="section-head"><h2>价值判断</h2></div>
+  <div class="section-head"><h2>核心判断</h2></div>
   <div class="card">
     <p class="muted" style="margin:0">{s.thesis}</p>
     <p class="small dim" style="margin:14px 0 0;padding-top:12px;border-top:1px solid var(--line)">
@@ -72,9 +87,117 @@ const upsideToMid = s.price != null && s.fairValue.mid != null && s.price > 0
     </p>
   </div>
 
+  {d && (
+    <>
+      <div class="section-head"><h2>生意本质</h2><span class="hint">不搞清楚赚的是什么钱，后面的估值都是空的</span></div>
+      <div class="card">
+        <p class="muted" style="margin:0;line-height:1.85">{d.businessModel}</p>
+      </div>
+
+      <div class="section-head"><h2>护城河</h2><span class="hint">哪些东西是竞争对手十年内拿不走的</span></div>
+      <div class="card">
+        <ul class="clean" style="padding-left:20px;line-height:1.8">
+          {d.moat.map((m) => <li>{m}</li>)}
+        </ul>
+      </div>
+
+      <div class="section-head"><h2>财务数据</h2></div>
+      <div class="card" style="overflow-x:auto;padding-bottom:8px">
+        <table>
+          <thead>
+            <tr>
+              <th>期间</th>
+              <th class="num">营收（亿）</th>
+              <th class="num">同比</th>
+              <th class="num">净利（亿）</th>
+              <th class="num">同比</th>
+              <th class="num">ROE</th>
+              <th class="num">毛利率</th>
+            </tr>
+          </thead>
+          <tbody>
+            {d.financials.map((f) => (
+              <tr>
+                <td>
+                  <strong>{f.period}</strong>
+                  {f.note && <div class="small dim" style="margin-top:2px;max-width:34ch">{f.note}</div>}
+                </td>
+                <td class="num">{fmtNum(f.revenue)}</td>
+                <td class="num" style={`color:${yoyColor(f.revenueYoY)}`}>{f.revenueYoY == null ? '—' : `${f.revenueYoY > 0 ? '+' : ''}${f.revenueYoY.toFixed(2)}%`}</td>
+                <td class="num">{fmtNum(f.netProfit)}</td>
+                <td class="num" style={`color:${yoyColor(f.netProfitYoY)}`}>{f.netProfitYoY == null ? '—' : `${f.netProfitYoY > 0 ? '+' : ''}${f.netProfitYoY.toFixed(2)}%`}</td>
+                <td class="num">{f.roe == null ? '—' : `${f.roe}%`}</td>
+                <td class="num">{f.grossMargin == null ? '—' : `${f.grossMargin}%`}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="section-head"><h2>估值交叉验证</h2><span class="hint">单一模型可以被参数操纵，三个模型给同一个区间才有意义</span></div>
+      <div class="card" style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr><th>方法</th><th>关键假设</th><th class="num">对应股价</th></tr>
+          </thead>
+          <tbody>
+            {d.valuationModels.map((v) => (
+              <tr>
+                <td>
+                  <strong>{v.method}</strong>
+                  {v.weight === 'main' && <span class="badge cheap" style="margin-left:6px;font-size:10px">主</span>}
+                </td>
+                <td class="small muted" style="max-width:46ch">{v.assumption}</td>
+                <td class="num" style={v.weight === 'main' ? 'font-weight:650' : ''}>{v.result == null ? '—' : v.result.toFixed(0)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p class="small dim" style="margin:14px 0 0">
+          三个方法给出的区间是 1200–1677，去掉两端极值后中枢落在 1320–1467。取 1400 作为合理价值中值，对应 20 倍 PE、约 4.5% 的自由现金流收益率——这是「低增长优质消费品」该有的定价，不是它 2021 年 60 倍 PE 的残影。
+        </p>
+      </div>
+
+      <div class="section-head"><h2>关键经营指标</h2><span class="hint">比财报更早反映真实需求的东西</span></div>
+      <div class="card" style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr><th>指标</th><th>当前值</th><th>信号</th><th>说明</th></tr>
+          </thead>
+          <tbody>
+            {d.keyMetrics.map((k) => (
+              <tr>
+                <td><strong>{k.label}</strong></td>
+                <td class="mono" style="font-size:12.5px">{k.value}<div class="small dim">{k.asOf}</div></td>
+                <td><span style={`color:${sigColor(k.signal)};font-size:12.5px`}>{sigLabel[k.signal]}</span></td>
+                <td class="small muted" style="max-width:40ch">{k.note}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="section-head"><h2>观察时间表</h2><span class="hint">什么时候能知道判断对不对</span></div>
+      <div class="card">
+        <table>
+          <thead><tr><th>时间</th><th>事件</th><th>为什么重要</th></tr></thead>
+          <tbody>
+            {d.timeline.map((t) => (
+              <tr>
+                <td class="mono" style="white-space:nowrap">{t.date}</td>
+                <td><strong>{t.event}</strong></td>
+                <td class="small muted">{t.why}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  )}
+
   <div class="section-head"><h2>风险与反证条件</h2><span class="hint">哪一条成立，这个判断就该推翻</span></div>
   <div class="card">
-    <ul class="clean" style="padding-left:20px">
+    <ul class="clean" style="padding-left:20px;line-height:1.8">
       {s.risks.map((r) => <li>{r}</li>)}
     </ul>
   </div>

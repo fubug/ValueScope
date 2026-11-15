@@ -72,6 +72,50 @@ export interface MarketsFile {
   markets: Market[];
 }
 
+export interface FinancialPoint {
+  period: string;
+  revenue: number | null;
+  revenueYoY: number | null;
+  netProfit: number | null;
+  netProfitYoY: number | null;
+  roe: number | null;
+  grossMargin: number | null;
+  note?: string;
+}
+
+export interface ValuationModel {
+  method: string;
+  assumption: string;
+  result: number | null;
+  weight?: 'main' | 'cross';
+}
+
+export interface KeyMetric {
+  label: string;
+  value: string;
+  asOf: string;
+  signal: 'good' | 'neutral' | 'bad';
+  note?: string;
+}
+
+export interface TimelineItem {
+  date: string;
+  event: string;
+  why: string;
+}
+
+/** 深度调研：仅在有深入分析时提供，列表页不渲染 */
+export interface DeepDive {
+  businessModel: string;
+  moat: string[];
+  financials: FinancialPoint[];
+  valuationModels: ValuationModel[];
+  keyMetrics: KeyMetric[];
+  timeline: TimelineItem[];
+  /** 一句话结论：现在的价格买它，赌的是什么 */
+  whatYouBet: string;
+}
+
 export interface Stock {
   ticker: string;
   name: string;
@@ -92,6 +136,7 @@ export interface Stock {
   risks: string[];
   lastReviewed: string;
   sample?: boolean;
+  deepDive?: DeepDive;
 }
 
 export interface StocksFile {

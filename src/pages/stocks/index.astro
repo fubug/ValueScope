@@ -60,6 +60,7 @@ const mosColor = (v: number | null) =>
                     <td>
                       <a href={`${base}/stocks/${s.ticker}/`} style="font-weight:550">{s.name}</a>
                       {s.sample && <span class="badge unknown" style="margin-left:6px;font-size:10px">示例</span>}
+                      {s.deepDive && <span class="badge cheap" style="margin-left:6px;font-size:10px">深度调研</span>}
                       <div class="small dim mono">{s.exchange} {s.ticker} · {s.sector}</div>
                     </td>
                     <td class="num">{s.price == null ? '—' : s.price.toFixed(2)}</td>

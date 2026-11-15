@@ -78,7 +78,35 @@ for (const s of stocks.stocks ?? []) {
   if (s.status === 'buy' && (s.price == null || s.fairValue?.mid == null)) {
     warnings.push(`${tag} 标记为「可买入」但没有现价/合理价值，页面无法计算安全边际`);
   }
+  if (s.status === 'buy' && typeof s.fairValue?.mid === 'number' && typeof s.price === 'number' && s.price > s.fairValue.mid) {
+    errors.push(`${tag} 状态为「可买入」但现价 ${s.price} 高于合理价值中值 ${s.fairValue.mid}，逻辑矛盾`);
+  }
   if (s.sample) warnings.push(`${tag} 仍是示例数据，正式使用前替换`);
+
+  // 深度调研的结构要求：不完整就等于「看着很详细但结论没依据」
+  if (s.deepDive) {
+    const d = s.deepDive;
+    if (!d.whatYouBet || d.whatYouBet.length < 40) {
+      errors.push(`${tag} deepDive.whatYouBet 过短，必须一句话说清「这个价格在赌什么」`);
+    }
+    if (!Array.isArray(d.moat) || d.moat.length < 2) errors.push(`${tag} deepDive.moat 至少 2 条`);
+    if (!Array.isArray(d.financials) || d.financials.length < 1) errors.push(`${tag} deepDive.financials 为空`);
+    if (!Array.isArray(d.timeline) || d.timeline.length < 1) {
+      errors.push(`${tag} deepDive.timeline 为空，必须给出「什么时候能知道判断对不对」`);
+    }
+    if (!Array.isArray(d.valuationModels) || d.valuationModels.length < 2) {
+      errors.push(`${tag} deepDive.valuationModels 至少 2 个方法，单一模型容易被参数操纵`);
+    }
+    const results = (d.valuationModels ?? []).map((v) => v.result).filter((v) => typeof v === 'number');
+    if (results.length && typeof s.fairValue?.low === 'number' && typeof s.fairValue?.high === 'number') {
+      const outliers = results.filter((r) => r < s.fairValue.low * 0.8 || r > s.fairValue.high * 1.2);
+      if (outliers.length) {
+        warnings.push(
+          `${tag} 估值结果 ${outliers.join('/')} 偏离合理价值区间 ${s.fairValue.low}-${s.fairValue.high} 超过 20%，检查假设或区间`
+        );
+      }
+    }
+  }
 }
 
 if ((stocks.stocks ?? []).length === 0) warnings.push('个股列表为空，页面会只显示录入指引');
