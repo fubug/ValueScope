@@ -1,0 +1,52 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  subtitle?: string;
+}
+const { title, subtitle } = Astro.props;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const path = Astro.url.pathname.replace(/\/$/, '') || base;
+
+const nav = [
+  { href: `${base}/`, label: '全球市场' },
+  { href: `${base}/stocks/`, label: 'A股个股' },
+  { href: `${base}/sectors/`, label: '行业看法' },
+  { href: `${base}/method/`, label: '方法论' },
+];
+
+const isActive = (href: string) => {
+  const clean = href.replace(/\/$/, '');
+  if (clean === base) return path === base || path === `${base}/index.html`;
+  return path.startsWith(clean);
+};
+---
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title} · 投资面板</title>
+    <meta name="description" content="全球市场估值分位与 A 股个股价值分析面板" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">投资面板 <span>估值 · 价值 · 纪律</span></div>
+      <nav class="nav">
+        {nav.map((n) => (
+          <a href={n.href} aria-current={isActive(n.href) ? 'page' : undefined}>{n.label}</a>
+        ))}
+      </nav>
+    </header>
+
+    {subtitle && <p class="lede">{subtitle}</p>}
+    <slot />
+
+    <footer>
+      <span>静态快照 · 非实时行情</span>
+      <span>分位 0 = 历史最便宜，100 = 历史最贵</span>
+      <a href={`${base}/method/`}>判定规则与数据来源 →</a>
+    </footer>
+  </body>
+</html>

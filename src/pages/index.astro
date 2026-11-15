@@ -1,0 +1,137 @@
+---
+import Base from '../layouts/Base.astro';
+import PercentileBar from '../components/PercentileBar.astro';
+import marketsData from '../../data/markets.json';
+import { judge, pickPrimaryPercentile, CONFIDENCE_LABEL, type MarketsFile } from '../lib/rules';
+
+const data = marketsData as unknown as MarketsFile;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+const rows = data.markets
+  .map((m) => {
+    const v = judge(m);
+    const p = pickPrimaryPercentile(m);
+    return { m, v, p };
+  })
+  .sort((a, b) => a.v.order - b.v.order || (a.p?.value ?? 999) - (b.p?.value ?? 999));
+
+const unknown = rows.filter((r) => r.v.tier === 'unknown').length;
+const missingLongRun = data.markets.filter((m) => m.longRun.cagr10y == null).length;
+
+const fmt = (v: number | null | undefined, digits = 1) =>
+  v == null ? '—' : v.toFixed(digits);
+---
+<Base title="全球主要市场" subtitle="买的是宽基指数，所以只看三件事：贵不贵（分位）、赚不赚钱（长期年化与夏普）、值不值得现在买（性价比）。">
+  <h1>全球主要市场</h1>
+
+  <div class="notice">
+    <strong>数据快照 {data.meta.snapshot}</strong>，全部为手工核对的公开数据，非实时行情。{unknown > 0 && `其中 ${unknown} 个市场缺少可用估值数据，未做档位判断。`}
+    分位数字越高越贵，判定规则见<a href={`${base}/method/`} style="color:inherit;text-decoration:underline">方法论</a>。
+  </div>
+
+  <div class="grid grid-3" style="margin-top:24px">
+    <div class="card">
+      <h3>美股：最贵，且机会成本为负</h3>
+      <p class="small muted" style="margin-bottom:10px">
+        CAPE 40.71，1871 年以来 99 分位；仅 1999-03 至 2000-09 的 18 个月份比它更高。
+      </p>
+      <div class="stat-row">
+        <div class="kv"><span class="k">CAPE</span><span class="v">40.71</span></div>
+        <div class="kv"><span class="k">股息率</span><span class="v">1.07%</span></div>
+        <div class="kv"><span class="k">ERP</span><span class="v" style="color:var(--expensive)">-2.69%</span></div>
+      </div>
+      <p class="small dim" style="margin-top:10px;margin-bottom:0">
+        10Y 美债 5.15%，而股票盈利收益率只有 2.46%——买股票比买债券少赚 2.69 个百分点。
+      </p>
+    </div>
+
+    <div class="card">
+      <h3>中国资产：指数不便宜，结构很便宜</h3>
+      <p class="small muted" style="margin-bottom:10px">
+        沪深300 PB 处十年 22 分位，但 PE 在 69 分位——便宜的是资产，不是利润。
+      </p>
+      <div class="stat-row">
+        <div class="kv"><span class="k">沪深300 PB 分位</span><span class="v">22</span></div>
+        <div class="kv"><span class="k">A股 ERP 分位</span><span class="v">71.6</span></div>
+        <div class="kv"><span class="k">恒生科技 PE 分位</span><span class="v">9</span></div>
+      </div>
+      <p class="small dim" style="margin-top:10px;margin-bottom:0">
+        恒指整体只是 60 分位，折价集中在恒生科技（9 分位）；港股的问题不是估值，是成交额在缩。
+      </p>
+    </div>
+
+    <div class="card">
+      <h3>越南：唯一分子分母同时有利</h3>
+      <p class="small muted" style="margin-bottom:10px">
+        PE 11.1 倍，低于近 3 年均值 14.6 约 24%；HOSE 前三季净利同比 +48.8%。
+      </p>
+      <div class="stat-row">
+        <div class="kv"><span class="k">PE</span><span class="v">11.1</span></div>
+        <div class="kv"><span class="k">3 年均值</span><span class="v">14.6</span></div>
+        <div class="kv"><span class="k">存款利率</span><span class="v" style="color:var(--expensive)">9%</span></div>
+      </div>
+      <p class="small dim" style="margin-top:10px;margin-bottom:0">
+        但无风险利率 9%，股票要跑赢它才有超额；且 Vingroup 系占市值 29%，买指数等于重仓地产。
+      </p>
+    </div>
+  </div>
+
+  <div class="section-head">
+    <h2>横向对比</h2>
+    <span class="hint">按「性价比」从便宜到贵排序</span>
+  </div>
+
+  <div class="card" style="padding:18px 20px 6px;overflow-x:auto">
+    <table>
+      <thead>
+        <tr>
+          <th>市场 / 指数</th>
+          <th class="num">PE</th>
+          <th class="num">PB</th>
+          <th class="num">股息率</th>
+          <th style="min-width:180px">估值分位</th>
+          <th class="num">ERP</th>
+          <th>判定</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map(({ m, v, p }) => (
+          <tr>
+            <td>
+              <a href={`${base}/markets/${m.id}/`} style="font-weight:550">
+                <span style="opacity:.85">{m.flag}</span> {m.name}
+              </a>
+              <div class="small dim mono">{m.indexName}</div>
+            </td>
+            <td class="num">{fmt(m.valuation.peTtm, 2)}</td>
+            <td class="num">{fmt(m.valuation.pb, 2)}</td>
+            <td class="num">{m.valuation.dividendYield == null ? '—' : `${fmt(m.valuation.dividendYield, 2)}%`}</td>
+            <td>
+              <PercentileBar value={p?.value ?? null} label={p?.basis} />
+              {p && <div class="small dim mono" style="margin-top:-2px">{p.basis}</div>}
+              {!p && <div class="small dim">{m.percentiles.note ? '见详情页' : '缺数据'}</div>}
+            </td>
+            <td class="num" style={m.rates.erp != null && m.rates.erp < 0 ? 'color:var(--expensive)' : ''}>
+              {m.rates.erp == null ? '—' : `${fmt(m.rates.erp, 2)}%`}
+            </td>
+            <td>
+              <span class={`badge ${v.className}`}>{v.label}</span>
+              {m.confidence !== 'high' && (
+                <div class="small dim" style="margin-top:4px">{CONFIDENCE_LABEL[m.confidence]}</div>
+              )}
+              {m.analystView && (
+                <div class="small dim" style="margin-top:2px">观点：{m.analystView.stance}</div>
+              )}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="notice info" style="margin-top:20px">
+    <strong>两个已知缺口</strong>，不填数字也不假装有：
+    ① 欧洲 STOXX 600 本次未取得可信估值，全字段留空；
+    ② <strong>{missingLongRun} 个市场的长期年化收益与夏普比率尚未接入</strong>——沙箱内可用的历史行情接口（stooq / Yahoo / 东方财富）均被限流或需浏览器渲染，拿不到干净的长序列。这一列是「长期赚不赚钱」的核心，比估值分位更重要，我会在你确认数据源后补上（MSCI 年度指数报告或本地 CSV 均可）。
+  </div>
+</Base>

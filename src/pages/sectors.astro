@@ -1,0 +1,74 @@
+---
+import Base from '../layouts/Base.astro';
+import PercentileBar from '../components/PercentileBar.astro';
+import sectorsData from '../../data/sectors.json';
+import type { SectorsFile } from '../lib/rules';
+
+const data = sectorsData as unknown as SectorsFile;
+
+const order = ['超配', '标配', '观察', '低配', '回避'] as const;
+const groups = order
+  .map((stance) => ({ stance, list: data.sectors.filter((s) => s.stance === stance) }))
+  .filter((g) => g.list.length > 0);
+
+const badgeClass = (stance: string) =>
+  stance === '超配' ? 'cheap' : stance === '标配' ? 'fair' : stance === '回避' ? 'expensive' : 'unknown';
+---
+<Base title="行业看法" subtitle="行业层面的判断只有两种价值：知道什么该重仓、知道什么便宜但不能碰。每条都附反证条件，条件成立就推翻它。">
+  <h1>A 股行业看法</h1>
+  <p class="lede" style="margin-top:6px">
+    快照 {data.meta.snapshot} · {data.meta.note}
+  </p>
+
+  {groups.map((g) => (
+    <>
+      <div class="section-head">
+        <h2>{g.stance}</h2>
+        <span class="hint">{g.list.length} 个方向</span>
+      </div>
+      <div class="grid grid-2">
+        {g.list.map((s) => (
+          <div class="card">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap">
+              <h3 style="margin:0">{s.name}</h3>
+              <span class={`badge ${badgeClass(s.stance)}`}>{s.stance}</span>
+            </div>
+
+            <div style="margin:14px 0 12px">
+              <div class="small dim" style="margin-bottom:2px">估值分位</div>
+              <PercentileBar value={s.pePercentile} label={`${s.name} PE 分位`} showTicks={false} />
+              <div class="small dim" style="margin-top:4px">{s.pePercentileBasis}</div>
+            </div>
+
+            <p class="muted small" style="margin-bottom:12px">{s.rationale}</p>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;font-size:12.5px">
+              <div>
+                <div class="dim" style="margin-bottom:4px">催化 / 买入理由</div>
+                <ul class="clean" style="padding-left:16px;font-size:12.5px">
+                  {s.catalysts.map((c) => <li>{c}</li>)}
+                </ul>
+              </div>
+              <div>
+                <div class="dim" style="margin-bottom:4px">反证 / 风险</div>
+                <ul class="clean" style="padding-left:16px;font-size:12.5px">
+                  {s.risks.map((r) => <li>{r}</li>)}
+                </ul>
+              </div>
+            </div>
+
+            {s.watchlist.length > 0 && (
+              <div class="small dim" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
+                观察标的：<span class="mono">{s.watchlist.join(' · ')}</span>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </>
+  ))}
+
+  <div class="notice info" style="margin-top:32px">
+    <strong>这份行业看法怎么用</strong>：它不是选股清单，是仓位分配的依据。超配只代表「同样的钱更愿意放这里」，不代表现在就该买；回避也不代表要做空。真正影响操作的只有一条——当某条「反证条件」出现时，你必须能说出自己改变了什么，否则观点就只是情绪。
+  </div>
+</Base>

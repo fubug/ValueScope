@@ -1,0 +1,71 @@
+{
+  "meta": {
+    "snapshot": "2026-11-15",
+    "note": "下面是三条结构示例（sample=true），价格与合理价值均为占位数值，用于演示排序与安全边际的计算方式，不可用于决策。请替换为你实际分析过的标的：把 sample 改成 false，填真实价格与估值，页面会自动按「状态 → 安全边际」排序。"
+  },
+  "stocks": [
+    {
+      "ticker": "601318",
+      "name": "中国平安",
+      "exchange": "SH",
+      "sector": "保险",
+      "price": 58.4,
+      "priceAsOf": "2026-11-14",
+      "valuation": { "peTtm": 7.8, "pb": 1.05, "dividendYield": 4.6 },
+      "fairValue": {
+        "low": 62,
+        "mid": 71,
+        "high": 84,
+        "method": "内含价值法：以 EV 增速 6%、新业务价值倍数 8 倍估算；交叉验证用 PB-ROE（ROE 12%、合理 PB 1.3）"
+      },
+      "buyZone": { "normal": 62, "aggressive": 55 },
+      "status": "buy",
+      "thesis": "估值在 PB 1.05、PE 7.8 的位置，隐含市场对投资端收益的极度悲观。买点逻辑不是「保险会变好」，而是「即使资产端不改善，4.6% 股息率 + 1 倍 PB 也提供了足够的下行缓冲」。触发加仓的条件是权益市场回暖带动投资收益，而非保费增长。",
+      "risks": ["10Y 国债 1.62% 环境下利差损扩大", "地产敞口减值超预期", "新单保费增速转负"],
+      "lastReviewed": "2026-11-14",
+      "sample": true
+    },
+    {
+      "ticker": "600519",
+      "name": "贵州茅台",
+      "exchange": "SH",
+      "sector": "食品饮料",
+      "price": 1420,
+      "priceAsOf": "2026-11-14",
+      "valuation": { "peTtm": 18.5, "pb": 6.2, "dividendYield": 3.4 },
+      "fairValue": {
+        "low": 1300,
+        "mid": 1650,
+        "high": 2000,
+        "method": "DCF：WACC 8.0%、永续增长 3.0%，10 年收入 CAGR 假设 6%；交叉验证用历史 PE 中枢 25 倍"
+      },
+      "buyZone": { "normal": 1320, "aggressive": 1150 },
+      "status": "watch",
+      "thesis": "价格已进入合理价值下沿，但还没到有明显安全边际的位置。关键不是估值，而是批价：如果飞天批价继续下行，报表端收入会在 1-2 个季度后体现，届时 E 下修会让 PE 被动抬升，所谓「便宜」会消失。等批价企稳信号，而不是等更低的股价。",
+      "risks": ["批价下行导致渠道亏损抛货", "商务宴请需求持续疲弱", "消费税改革预期"],
+      "lastReviewed": "2026-11-14",
+      "sample": true
+    },
+    {
+      "ticker": "300750",
+      "name": "宁德时代",
+      "exchange": "SZ",
+      "sector": "电池",
+      "price": 248,
+      "priceAsOf": "2026-11-14",
+      "valuation": { "peTtm": 21.4, "pb": 4.1, "dividendYield": 1.2 },
+      "fairValue": {
+        "low": 180,
+        "mid": 230,
+        "high": 290,
+        "method": "分部估值：动力电池按 15 倍 PE、储能按 25 倍 PE，加权后与 DCF 交叉验证"
+      },
+      "buyZone": { "normal": 190, "aggressive": 165 },
+      "status": "avoid",
+      "thesis": "典型的「行业便宜、公司不便宜」。电池板块整体 PE/PB 在历史 15% 分位以下，但龙头享有份额溢价，估值仍在 21 倍。在碳酸锂、氢氧化锂价格仍在下行、行业产能未出清的阶段，龙头的高估值需要用份额提升来消化，而份额已经接近天花板。便宜的是行业预期，不是这家公司。",
+      "risks": ["锂价继续下行拖累电池单价", "车企自建电池产能挤压份额", "储能订单价格战"],
+      "lastReviewed": "2026-11-14",
+      "sample": true
+    }
+  ]
+}

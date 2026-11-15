@@ -1,0 +1,101 @@
+---
+import Base from '../../layouts/Base.astro';
+import stocksData from '../../../data/stocks.json';
+import { sortStocks, marginOfSafety, STATUS_LABEL, type StocksFile } from '../../lib/rules';
+
+const data = stocksData as unknown as StocksFile;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const sorted = sortStocks(data.stocks);
+const hasSample = data.stocks.some((s) => s.sample);
+
+const groups = [
+  { status: 'buy' as const, hint: '价格已进入买入区间，且有安全边际' },
+  { status: 'watch' as const, hint: '方向对但价格或证据不足，等触发条件' },
+  { status: 'avoid' as const, hint: '看着便宜，但不该买——便宜有便宜的原因' },
+];
+
+const mosColor = (v: number | null) =>
+  v == null ? 'var(--dim)' : v >= 0.2 ? 'var(--cheap)' : v >= 0 ? 'var(--fair)' : 'var(--expensive)';
+---
+<Base title="A股个股" subtitle="只做价值分析：算出合理价值区间，再看现价给了多少安全边际。排序规则是「状态 → 安全边际」，不是「看好程度」。">
+  <h1>A 股个股</h1>
+
+  {hasSample && (
+    <div class="notice">
+      <strong>当前含结构示例数据</strong>：标有 <span class="badge unknown">示例</span> 的条目，价格与合理价值是占位数值，只用来演示排序与安全边际怎么算，<strong>不可用于决策</strong>。
+      换成你自己的标的时，编辑 <span class="mono">data/stocks.json</span>，把 <span class="mono">sample</span> 改为 <span class="mono">false</span> 并填入真实数据。
+    </div>
+  )}
+
+  {groups.map((g) => {
+    const list = sorted.filter((s) => s.status === g.status);
+    if (list.length === 0) return null;
+    return (
+      <>
+        <div class="section-head">
+          <h2>
+            <span class={`badge ${g.status}`}>{STATUS_LABEL[g.status]}</span>
+            <span style="font-size:14px;font-weight:400;color:var(--muted);margin-left:10px">{g.hint}</span>
+          </h2>
+          <span class="hint">{list.length} 只</span>
+        </div>
+        <div class="card" style="overflow-x:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>标的</th>
+                <th class="num">现价</th>
+                <th class="num">合理价值</th>
+                <th class="num">安全边际</th>
+                <th class="num">买入区间</th>
+                <th class="num">PE / PB</th>
+                <th class="num">复盘日</th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((s) => {
+                const mos = marginOfSafety(s);
+                return (
+                  <tr>
+                    <td>
+                      <a href={`${base}/stocks/${s.ticker}/`} style="font-weight:550">{s.name}</a>
+                      {s.sample && <span class="badge unknown" style="margin-left:6px;font-size:10px">示例</span>}
+                      <div class="small dim mono">{s.exchange} {s.ticker} · {s.sector}</div>
+                    </td>
+                    <td class="num">{s.price == null ? '—' : s.price.toFixed(2)}</td>
+                    <td class="num">
+                      {s.fairValue.mid == null ? '—' : s.fairValue.mid.toFixed(0)}
+                      {s.fairValue.low != null && s.fairValue.high != null && (
+                        <div class="small dim mono" style="font-size:11px">{s.fairValue.low}–{s.fairValue.high}</div>
+                      )}
+                    </td>
+                    <td class="num" style={`color:${mosColor(mos)};font-weight:600`}>
+                      {mos == null ? '—' : `${(mos * 100).toFixed(1)}%`}
+                    </td>
+                    <td class="num">
+                      {s.buyZone.normal == null ? '—' : s.buyZone.normal}
+                      {s.buyZone.aggressive != null && (
+                        <div class="small dim mono" style="font-size:11px">激进 {s.buyZone.aggressive}</div>
+                      )}
+                    </td>
+                    <td class="num">
+                      {s.valuation.peTtm == null ? '—' : `${s.valuation.peTtm}`}
+                      <span class="dim"> / </span>
+                      {s.valuation.pb == null ? '—' : `${s.valuation.pb}`}
+                    </td>
+                    <td class="num small dim">{s.lastReviewed}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </>
+    );
+  })}
+
+  <div class="notice info" style="margin-top:28px">
+    <strong>关于「便宜但不买」这一类</strong>：它存在的意义是防止把低估值当成买入理由。电池与能源金属是典型——板块 PE/PB 在历史 15% 分位以下，但锂价还在跌，盈利预测还没下修完，等 E 跌下来，PE 会自己涨回去。所以这一类必须单列，而不是混在「观察」里。
+    安全边际颜色：<span style="color:var(--cheap)">≥20% 绿</span>、<span style="color:var(--fair)">0–20% 黄</span>、<span style="color:var(--expensive)">负值红</span>（现价高于合理价值）。
+  </div>
+</Base>

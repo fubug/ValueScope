@@ -1,0 +1,99 @@
+---
+import Base from '../layouts/Base.astro';
+import marketsData from '../../data/markets.json';
+import type { MarketsFile } from '../lib/rules';
+
+const data = marketsData as unknown as MarketsFile;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+---
+<Base title="方法论" subtitle="一个面板最容易骗人的地方，是把「拍出来的权重」包装成「算出来的分数」。这一页说明每个数字从哪来、规则怎么判、哪里不可靠。">
+  <h1>方法论</h1>
+
+  <div class="section-head"><h2>一、为什么没有「综合评分」</h2></div>
+  <div class="card">
+    <p class="muted">
+      上一个版本（v3）用五维等权打分算出一个「鱼情分」，问题是：权重是拍的，没人验证过这个分数与后续收益有关系。它自洽，但不产生决策价值。
+    </p>
+    <p class="muted" style="margin-bottom:0">
+      现在改成<strong>规则式判定</strong>：只用「主估值分位落档 + ERP 分位修正」两步行进，每一步都能在页面上看到，任何人可以自己复算，也可以直接反对某一步。宁可结论粗糙，也不要一个无法拆解的数字。
+    </p>
+  </div>
+
+  <div class="section-head"><h2>二、判定规则（可直接复算）</h2></div>
+  <div class="card" style="overflow-x:auto">
+    <table>
+      <thead>
+        <tr><th>步骤</th><th>规则</th><th>说明</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1. 取主分位</td>
+          <td class="mono" style="font-family:var(--mono);font-size:12.5px">PE·10Y → PE·5Y → PE·20Y → PB·10Y → CAPE·20Y → CAPE·10Y</td>
+          <td>按顺序取第一个有值的，避免用不同指标拼出一个「平均分位」</td>
+        </tr>
+        <tr>
+          <td>2. 落档</td>
+          <td class="mono" style="font-family:var(--mono);font-size:12.5px">≤15 极具性价比 / ≤35 偏便宜 / ≤65 合理 / ≤85 偏贵 / &gt;85 很贵</td>
+          <td>固定阈值，不随市场调整，保证横向可比</td>
+        </tr>
+        <tr>
+          <td>3. ERP 修正</td>
+          <td class="mono" style="font-family:var(--mono);font-size:12.5px">ERP 分位 ≥70 上调一档；≤30 下调一档；其余不修正</td>
+          <td>ERP 捕捉「股票相对债券」的性价比，与估值分位互补</td>
+        </tr>
+        <tr>
+          <td>4. 置信度</td>
+          <td>high / medium / low</td>
+          <td>不改变档位，只做提示：数据有争议时不允许输出强结论</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section-head"><h2>三、三个必须承认的局限</h2></div>
+  <div class="grid grid-3">
+    <div class="card">
+      <h3>分位口径不统一</h3>
+      <p class="small muted" style="margin:0">
+        同样是沪深300 的 PE 分位，Wind 给十年 67%、东方财富给 69.2%、发布以来 54%。起点年份、是否剔除亏损股、是否用 TTM，都会让数字差 10 个百分点以上。跨市场比较分位时，这个误差足以改变结论。
+      </p>
+    </div>
+    <div class="card">
+      <h3>分位不是收益预测</h3>
+      <p class="small muted" style="margin:0">
+        CAPE 贵了十年，美股还是涨了十年。分位只回答「起点在哪」，不回答「什么时候回」。把它当择时信号，历史上代价很高。
+      </p>
+    </div>
+    <div class="card">
+      <h3>长期收益这一列还是空的</h3>
+      <p class="small muted" style="margin:0">
+        年化收益与夏普需要干净的历史长序列，本环境的免费接口全部被限流或需浏览器渲染。这一列比估值更重要，补上之前，这个面板只完成了「贵不贵」，没完成「值不值得拿」。
+      </p>
+    </div>
+  </div>
+
+  <div class="section-head"><h2>四、数据来源（{data.meta.snapshot} 快照）</h2></div>
+  <div class="card">
+    <ul class="clean" style="padding-left:20px">
+      {data.meta.sources.map((s) => (
+        <li><span class="mono small dim">{s.asOf}</span> · {s.label}</li>
+      ))}
+    </ul>
+    <p class="small dim" style="margin:14px 0 0;padding-top:12px;border-top:1px solid var(--line)">
+      {data.meta.disclaimer}
+    </p>
+  </div>
+
+  <div class="section-head"><h2>五、怎么维护</h2></div>
+  <div class="card">
+    <ul class="clean" style="padding-left:20px">
+      <li>市场数据：<span class="mono">data/markets.json</span>，改完提交即触发部署。</li>
+      <li>个股：<span class="mono">data/stocks.json</span>，把 <span class="mono">sample</span> 改为 <span class="mono">false</span> 并填真实价格；页面自动按「状态 → 安全边际」重排。</li>
+      <li>行业观点：<span class="mono">data/sectors.json</span>，每条必须带反证条件，否则这条观点没有可推翻的边界。</li>
+      <li>动手前跑 <span class="mono">npm run check</span>，校验字段完整性与日期新鲜度，防止再出现「数据停了三个月没人发现」。</li>
+    </ul>
+    <p style="margin:14px 0 0">
+      <a href={`${base}/`} style="color:var(--accent)">← 回到市场总览</a>
+    </p>
+  </div>
+</Base>

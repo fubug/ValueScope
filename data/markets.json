@@ -1,0 +1,236 @@
+{
+  "meta": {
+    "snapshot": "2026-11-15",
+    "generatedBy": "手工核对 + 公开来源摘录",
+    "disclaimer": "所有数值为静态快照，非实时行情。分位为「当前值在该指标历史序列中的位置」，0=历史最便宜，100=历史最贵。不同来源的分位口径（起点年份、是否剔除亏损股、是否用 TTM）差异很大，跨市场横向比较时请看每个市场的 caveats。",
+    "sources": [
+      { "label": "Shiller / multpl.com（标普500 CAPE，月度，至 2026-10）", "asOf": "2026-10" },
+      { "label": "广发宏观资配月报（标普 CAPE 40.71、股息率 1.07%、万得全A 数据）", "asOf": "2026-11-11" },
+      { "label": "东方财富指数估值（沪深300 PE 分位，10年/5年）", "asOf": "2026-11-06" },
+      { "label": "Wind / 券商周报（沪深300 PB 分位、恒生指数 PE/PB 分位、ERP）", "asOf": "2026-11-13" },
+      { "label": "NSE / niftyperatio（Nifty 50 PE 20.49、PB 3.08、股息率 1.40%）", "asOf": "2026-11-13" },
+      { "label": "SSI Research / VNDirect / Simply Wall St（VN-Index 估值与盈利）", "asOf": "2026-11-13" },
+      { "label": "同花顺全球指数估值周报（日经225 PE 与分位）", "asOf": "2026-11-07" }
+    ]
+  },
+  "markets": [
+    {
+      "id": "us",
+      "name": "美国",
+      "indexName": "S&P 500",
+      "region": "北美",
+      "flag": "🇺🇸",
+      "currency": "USD",
+      "level": 7592.4,
+      "levelAsOf": "2026-11-12",
+      "valuation": { "peTtm": null, "pb": null, "cape": 40.71, "dividendYield": 1.07 },
+      "percentiles": {
+        "cape": { "y5": null, "y10": 98.9, "y20": 96.3 },
+        "note": "CAPE 分位窗口为「近 15 年 98.9 分位」与「近 45 年 96.3 分位」，非严格 10/20 年。近 30 年为 94.4 分位。"
+      },
+      "rates": {
+        "riskFree": 5.149,
+        "riskFreeLabel": "10Y 美债",
+        "erp": -2.69,
+        "erpPercentile": null,
+        "erpNote": "以 CAPE 收益率（1/40.71 = 2.46%）减 10Y 美债 5.15% 计算，为负值：股票盈利收益率已低于无风险利率。"
+      },
+      "longRun": { "cagr10y": null, "cagr20y": null, "sharpe10y": null },
+      "perf": { "ytd": null, "y1": null },
+      "confidence": "high",
+      "caveats": [
+        "CAPE 40.71 是 2026-10 的月度读数，历史 1871 年以来仅 18 个月份比它更高，全部集中在 1999-03 至 2000-09 之间。",
+        "CAPE 之上还有 2026-08 的 41.0 读数，说明这一年并非单边上行，波动带来过短暂回落。",
+        "CAPE 擅长描述未来十年回报的区间，不擅长择时；过去十年大部分时间都「贵」，仅凭高分位卖出会错过长段上涨。",
+        "PE(TTM)、PB 本次未取得可靠同源数据，留空而不是用 CAPE 反推。"
+      ],
+      "analystView": {
+        "stance": "观察",
+        "thesis": "估值处于历史极端区间（CAPE 99 分位、ERP 为负、股息率 1.07% 远低于 10Y 美债 5.15%），意味着持有美股的机会成本是近二十年最高的。但高估值只能说明「未来十年起点差」，不能作为减仓时点。对你的 40% 美股仓位，结论是维持定投、暂停加码，把「标普单日 -2% 加倍」的触发条件收紧而不是放宽。",
+        "asOf": "2026-11-15"
+      }
+    },
+    {
+      "id": "cn",
+      "name": "中国 A 股",
+      "indexName": "沪深300",
+      "region": "亚太",
+      "flag": "🇨🇳",
+      "currency": "CNY",
+      "level": null,
+      "levelAsOf": null,
+      "valuation": { "peTtm": 13.5, "pb": 1.34, "cape": null, "dividendYield": null },
+      "percentiles": {
+        "pe": { "y5": 76.67, "y10": 69.21, "y20": null },
+        "pb": { "y5": null, "y10": 22, "y20": null },
+        "note": "PE 分位来自东方财富（10 年 69.21%，5 年 76.67%）；PB 分位来自 Wind（近十年 22%）。Wind 的 PE 十年分位为 67%、发布以来 54%，与东财口径差 2-15 个百分点。"
+      },
+      "rates": {
+        "riskFree": 1.62,
+        "riskFreeLabel": "10Y 中国国债",
+        "erp": 5.78,
+        "erpPercentile": 71.62,
+        "erpNote": "ERP = 1/13.5 = 7.41% 减 10Y 国债 1.62%，处于 2005 年指数发布以来 71.6% 分位（越高越便宜）。"
+      },
+      "longRun": { "cagr10y": null, "cagr20y": null, "sharpe10y": null },
+      "perf": { "ytd": null, "y1": null },
+      "confidence": "medium",
+      "caveats": [
+        "PE 与 PB 分位严重背离（PE 69%、PB 22%），说明当前盈利（E）处于周期低位、而净资产（B）没有同步下跌。买 PE 高分位等于赌盈利修复，买 PB 低分位等于买资产，两者是不同的赌注。",
+        "2026 三季报全A（剔除金融、石油石化）归母净利同比 +16.1%，较中报 14.6% 继续改善，是 PE 分位偏高的直接原因之一：分母在修复，估值被动下降。",
+        "沪深300 股息率本次未取得同源数据；参考全A 股息率约 2.03%（10 月）。",
+        "不同平台分位起点不同（2005 发布以来 / 近十年 / 2013 以来），横向比较时务必确认口径。"
+      ],
+      "analystView": {
+        "stance": "持有",
+        "thesis": "PB 十年 22 分位 + ERP 71.6 分位，是「用合理价格买资产」的区域，但 PE 69 分位提示盈利仍在底部，估值便宜的一半原因是利润差。真正要跟踪的是盈利修复能否延续（Q3 +16.1%），而不是指数点位。对你而言这是持仓结构的左侧配置，不适合一次性重仓。",
+        "asOf": "2026-11-15"
+      }
+    },
+    {
+      "id": "hk",
+      "name": "中国香港",
+      "indexName": "恒生指数",
+      "region": "亚太",
+      "flag": "🇭🇰",
+      "currency": "HKD",
+      "level": null,
+      "levelAsOf": null,
+      "valuation": { "peTtm": 10.77, "pb": 1.11, "cape": null, "dividendYield": null },
+      "percentiles": {
+        "pe": { "y5": null, "y10": 60, "y20": null },
+        "pb": { "y5": null, "y10": 48, "y20": null },
+        "note": "分位基准为「2010 年以来」（约 16 年），非严格 10 年。数据日 2026-11-13。"
+      },
+      "rates": {
+        "riskFree": 1.61,
+        "riskFreeLabel": "10Y 中国国债",
+        "erp": 7.68,
+        "erpPercentile": 73,
+        "erpNote": "ERP 以 1/10.77 = 9.29% 减 10Y 中国国债 1.61% 计。若改用 10Y 美债 4.86% 为无风险利率，ERP 仅 4.15%（2010 年以来 7% 分位）——用哪个无风险利率，结论完全相反。"
+      },
+      "longRun": { "cagr10y": null, "cagr20y": null, "sharpe10y": null },
+      "perf": { "ytd": null, "y1": null },
+      "confidence": "high",
+      "caveats": [
+        "恒指 PE 一周内从 11.09 跌到 10.77（指数 -3.45%），分位从 66% 降到 60%，单周变化较大，快照易过时。",
+        "恒生科技 PE 19.77、PB 2.05，处于 2010 年以来 9%/7% 分位——港股内部的低估集中在科技与互联网，而非指数整体。",
+        "ERP 口径敏感：对中债 7.68%（73 分位，很便宜）/ 对美债 4.15%（7 分位，很贵）。港股同时受两边利率牵引，单一口径会误导。"
+      ],
+      "analystView": {
+        "stance": "持有",
+        "thesis": "指数层面只是「合理」（PE 60 分位），真正的折价在恒生科技（9 分位）。港股的问题不是估值而是流动性：本周日均成交 1862 亿港元、环比少 702 亿，南向净流入 118 亿但外资主动基金仍在流出。估值便宜 + 资金不来的组合，适合慢速买、不适合重仓押注。",
+        "asOf": "2026-11-15"
+      }
+    },
+    {
+      "id": "jp",
+      "name": "日本",
+      "indexName": "日经225",
+      "region": "亚太",
+      "flag": "🇯🇵",
+      "currency": "JPY",
+      "level": null,
+      "levelAsOf": null,
+      "valuation": { "peTtm": 14.68, "pb": null, "cape": null, "dividendYield": null },
+      "percentiles": {
+        "pe": { "y5": null, "y10": 49, "y20": null },
+        "note": "「图示历史样本的 49% 分位」，样本窗口未披露，可能短于 10 年，仅作参考。"
+      },
+      "rates": { "riskFree": null, "riskFreeLabel": "10Y 日本国债", "erp": null, "erpPercentile": null },
+      "longRun": { "cagr10y": null, "cagr20y": null, "sharpe10y": null },
+      "perf": { "ytd": null, "y1": null },
+      "confidence": "medium",
+      "caveats": [
+        "一周内 PE 从 16.56 降到 14.68，指数跌 9.3%，属单周剧烈调整，快照代表性有限。",
+        "分位样本窗口未公开，PE 14.68 的绝对水平在日本历史上偏低，但 49% 分位说明样本窗口内多数时间更低。",
+        "日本市场受汇率影响大（日元计价指数与美元回报可能背离），本表面板未做汇率调整。"
+      ],
+      "analystView": {
+        "stance": "观察",
+        "thesis": "一周 -9.3% 后 PE 回到 14.68、中位附近。日本的核心变量不是估值而是治理改革与日元：如果买入理由是「公司治理改善 + 通胀回归」，那 9% 的回调不改变逻辑；如果理由是「便宜」，14.68 倍并不便宜。先分清买入理由再谈加仓。",
+        "asOf": "2026-11-15"
+      }
+    },
+    {
+      "id": "in",
+      "name": "印度",
+      "indexName": "Nifty 50",
+      "region": "亚太",
+      "flag": "🇮🇳",
+      "currency": "INR",
+      "level": 25144.3,
+      "levelAsOf": "2026-11-13",
+      "valuation": { "peTtm": 20.49, "pb": 3.08, "cape": null, "dividendYield": 1.4 },
+      "percentiles": {
+        "pe": { "y5": null, "y10": 9.7, "y20": null },
+        "note": "10 年百分位取 niftyperatio（2026-11-11 读数 20.59 对应 9.7%ile）。另有来源称「接近长期均值 20 倍」，两者矛盾，未解决。"
+      },
+      "rates": { "riskFree": null, "riskFreeLabel": "10Y 印度国债", "erp": null, "erpPercentile": null },
+      "longRun": { "cagr10y": null, "cagr20y": null, "sharpe10y": null },
+      "perf": { "ytd": null, "y1": -2.84 },
+      "confidence": "low",
+      "caveats": [
+        "分位数据存在冲突：一处给出 10 年 9.7% 分位（很便宜），另一处称 PE 20.49 接近长期均值 20（中性）。未找到第三个独立来源裁决，因此给低置信度。",
+        "PB 3.08 处于历史偏高水平，与 PE 分位偏低的说法不一致——高 ROE 会压低 PE 而抬高 PB，需要确认是否是这个原因。",
+        "NSE 自 2021-04 起由单独报表改为合并报表计算 PE，2021 年前后的 PE 不可直接比较，这会系统性影响 10 年分位。",
+        "近 1 年 -2.84%，近 1 月 +10.66%，波动剧烈。"
+      ],
+      "analystView": {
+        "stance": "观察",
+        "thesis": "PE 20.5 + PB 3.08 的组合说明印度仍是「高质量、不便宜」的市场，任何「9.7 分位=很便宜」的结论都要先解决口径问题（合并报表改制 + PB 背离）。在核实之前，不建议依据分位加仓；如果要买，理由应是盈利增速而非估值分位。",
+        "asOf": "2026-11-15"
+      }
+    },
+    {
+      "id": "vn",
+      "name": "越南",
+      "indexName": "VN-Index",
+      "region": "亚太",
+      "flag": "🇻🇳",
+      "currency": "VND",
+      "level": 1743.07,
+      "levelAsOf": "2026-11-10",
+      "valuation": { "peTtm": 11.1, "pb": null, "cape": null, "dividendYield": null },
+      "percentiles": {
+        "note": "无长期估值分位公开数据。参照：当前 PE 11.1 倍，低于近 3 年均值 14.6 倍约 24%；VN-Index 的 12 个月滚动 PE 从 9 月底 12 倍降至 11 月初约 10.6 倍。"
+      },
+      "rates": { "riskFree": null, "riskFreeLabel": "越南 1 年期存款利率（约 9%）", "erp": null, "erpPercentile": null },
+      "longRun": { "cagr10y": null, "cagr20y": null, "sharpe10y": null },
+      "perf": { "ytd": null, "y1": null },
+      "confidence": "medium",
+      "caveats": [
+        "估值便宜的一部分原因是权重集中：Vingroup 系（VIC/VHM/VRE/VPL）约占市值 29%，剔除后 PE 仅约 9 倍。买指数等于被动买房地产集团。",
+        "HOSE 前三季度净利 +48.8%、Q3 单季 +52%，但增长高度集中于 VIC/VHM/BSR，剔除三家后仍 +17.5%。",
+        "外资连续净卖出（10 月净卖约 23 万亿越南盾），市场流动性已连续五个月下降。",
+        "1 年期存款利率约 9%，是无风险收益率的高门槛：股票要跑赢 9% 才算真正有超额收益。"
+      ],
+      "analystView": {
+        "stance": "观察",
+        "thesis": "11 倍 PE + 盈利高增，是本次快照里「分子分母同时有利」的唯一市场。但两个硬约束：一是 9% 的存款利率抬高了机会成本，二是权重股集中让指数失真。真正值得做的是剔除 Vingroup 后的 9 倍 PE 标的池，而不是直接买 VN-Index。",
+        "asOf": "2026-11-15"
+      }
+    },
+    {
+      "id": "eu",
+      "name": "欧洲",
+      "indexName": "STOXX 600",
+      "region": "欧洲",
+      "flag": "🇪🇺",
+      "currency": "EUR",
+      "level": null,
+      "levelAsOf": null,
+      "valuation": { "peTtm": null, "pb": null, "cape": null, "dividendYield": null },
+      "percentiles": {},
+      "rates": { "riskFree": null, "riskFreeLabel": "10Y 德国国债", "erp": null, "erpPercentile": null },
+      "longRun": { "cagr10y": null, "cagr20y": null, "sharpe10y": null },
+      "perf": { "ytd": null, "y1": null },
+      "confidence": "low",
+      "caveats": [
+        "本次快照未能取得 STOXX 600 的可信估值与分位数据（多个数据源返回空值或需要 JavaScript 渲染）。",
+        "为了不填充未经核实的数字，此市场所有字段留空，等接入稳定数据源后补齐。"
+      ],
+      "analystView": null
+    }
+  ]
+}

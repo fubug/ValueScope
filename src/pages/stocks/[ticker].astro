@@ -1,0 +1,81 @@
+---
+import Base from '../../layouts/Base.astro';
+import stocksData from '../../../data/stocks.json';
+import { marginOfSafety, STATUS_LABEL, type Stock, type StocksFile } from '../../lib/rules';
+
+export function getStaticPaths() {
+  return (stocksData as unknown as StocksFile).stocks.map((s) => ({
+    params: { ticker: s.ticker },
+    props: { s },
+  }));
+}
+
+const data = stocksData as unknown as StocksFile;
+
+const { s } = Astro.props as { s: Stock };
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const mos = marginOfSafety(s);
+const mosColor = mos == null ? 'var(--dim)' : mos >= 0.2 ? 'var(--cheap)' : mos >= 0 ? 'var(--fair)' : 'var(--expensive)';
+
+const upsideToMid = s.price != null && s.fairValue.mid != null && s.price > 0
+  ? ((s.fairValue.mid - s.price) / s.price) * 100
+  : null;
+---
+<Base title={`${s.name} ${s.ticker}`}>
+  <p class="small" style="margin-bottom:8px">
+    <a href={`${base}/stocks/`} class="dim">← 个股列表</a>
+  </p>
+
+  <h1>{s.name} <span class="mono dim" style="font-size:16px;font-weight:400">{s.exchange} {s.ticker}</span></h1>
+  <p class="lede">
+    {s.sector} · 复盘日 {s.lastReviewed} · 价格数据 {s.priceAsOf ?? '—'}
+    {s.sample && <> · <span class="badge unknown">示例数据，勿用于决策</span></>}
+  </p>
+
+  <div class="grid grid-3" style="margin-top:20px">
+    <div class="card">
+      <div class="kv"><span class="k">现价</span><span class={`v ${s.price == null ? 'na' : ''}`}>{s.price == null ? '待录入' : s.price.toFixed(2)}</span></div>
+    </div>
+    <div class="card">
+      <div class="kv">
+        <span class="k">合理价值（中值）</span>
+        <span class={`v ${s.fairValue.mid == null ? 'na' : ''}`}>{s.fairValue.mid == null ? '待录入' : s.fairValue.mid.toFixed(0)}</span>
+        {s.fairValue.low != null && s.fairValue.high != null && (
+          <span class="sub mono">区间 {s.fairValue.low} – {s.fairValue.high}</span>
+        )}
+      </div>
+    </div>
+    <div class="card">
+      <div class="kv">
+        <span class="k">安全边际</span>
+        <span class="v" style={`color:${mosColor}`}>{mos == null ? '待录入' : `${(mos * 100).toFixed(1)}%`}</span>
+        <span class="sub">{upsideToMid == null ? '' : `距中值 ${upsideToMid > 0 ? '+' : ''}${upsideToMid.toFixed(1)}%`}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="stat-row">
+      <div class="kv"><span class="k">状态</span><span style="margin-top:2px"><span class={`badge ${s.status}`}>{STATUS_LABEL[s.status]}</span></span></div>
+      <div class="kv"><span class="k">买入区间</span><span class={`v ${s.buyZone.normal == null ? 'na' : ''}`}>{s.buyZone.normal == null ? '待录入' : s.buyZone.normal}</span><span class="sub">激进 {s.buyZone.aggressive ?? '—'}</span></div>
+      <div class="kv"><span class="k">PE</span><span class={`v ${s.valuation.peTtm == null ? 'na' : ''}`}>{s.valuation.peTtm ?? '—'}</span></div>
+      <div class="kv"><span class="k">PB</span><span class={`v ${s.valuation.pb == null ? 'na' : ''}`}>{s.valuation.pb ?? '—'}</span></div>
+      <div class="kv"><span class="k">股息率</span><span class={`v ${s.valuation.dividendYield == null ? 'na' : ''}`}>{s.valuation.dividendYield == null ? '—' : `${s.valuation.dividendYield}%`}</span></div>
+    </div>
+  </div>
+
+  <div class="section-head"><h2>价值判断</h2></div>
+  <div class="card">
+    <p class="muted" style="margin:0">{s.thesis}</p>
+    <p class="small dim" style="margin:14px 0 0;padding-top:12px;border-top:1px solid var(--line)">
+      <strong>估值方法：</strong>{s.fairValue.method}
+    </p>
+  </div>
+
+  <div class="section-head"><h2>风险与反证条件</h2><span class="hint">哪一条成立，这个判断就该推翻</span></div>
+  <div class="card">
+    <ul class="clean" style="padding-left:20px">
+      {s.risks.map((r) => <li>{r}</li>)}
+    </ul>
+  </div>
+</Base>
