@@ -555,6 +555,18 @@ export interface EtfIndex {
   /** 编制方法重大变更。变更前后不是同一个指数，分位序列在此处断开 */
   methodologyChanges?: Array<{ date: string; summary: string }> | null;
   asOf: string;
+  /**
+   * 同一天的另一个 PE 读数（不同机构/不同口径）。2026-11 加电力指数时才发现必须留这个口子：
+   * iFinD 整体法给 22.43（十年分位 73%），Wind 剔除亏损样本给 17.75（五年分位 25.84%）。
+   * 两个数都「对」，但它们指向相反的结论。只存一个，等于把分歧藏起来。
+   */
+  peAlt?: {
+    value: number;
+    source: string;
+    asOf?: string;
+    pct5y?: number;
+    note?: string;
+  } | null;
   peCaveat?: string;
   sources: string[];
 }
@@ -855,6 +867,49 @@ export function impliedPayoutRatio(idx: EtfIndex | undefined): number | null {
 /** 派息率超过这个水平，股息率就难以持续——分红吃掉利润的同时也吃掉了再投入 */
 export const PAYOUT_CEILING = 80;
 
+/** 同一个 PE 的两个来源差多少就算「说不清」。20% 是同口径的正常波动上限 */
+export const PE_SOURCE_GAP = 0.2;
+
+export interface PeSourceConflict {
+  main: number;
+  alt: number;
+  /** 相对偏离（|alt - main| / main） */
+  gap: number;
+  source: string;
+  reason: string;
+}
+
+/**
+ * PE 来源分歧——2026-11 加电力指数时发现。
+ *
+ * 光伏那次是「-65.91 对 22.54」，差 88 倍，一眼就知道口径不同（一个含亏损样本、一个剔除）。
+ * 电力这次更阴险：22.43 对 17.75，差 26%。两个数都像是正常市盈率，看不出谁错，
+ * 但它们各自的分位是 73%（偏贵）和 25.84%（便宜）——**结论相反**。
+ *
+ * 差的来源是分母里有没有亏损机组：电力指数 59 只样本里，火电在煤价高位时有亏损公司。
+ * 整体法把亏损公司算进分母，行业利润变小，PE 就高；剔除亏损只统计赚钱的公司，PE 就低。
+ * 前者回答「整个行业按利润算回本要几年」，后者回答「赚钱的那部分回本要几年」。
+ *
+ * 所以规则：两个来源差超过 PE_SOURCE_GAP 时，估值层最高只判部分通过——
+ * 不是「贵」，是「这件事本身还没法下结论」。给出一个数比给出两个数更需要理由。
+ */
+export function peSourceConflict(idx: EtfIndex | undefined): PeSourceConflict | null {
+  if (!idx || typeof idx.pe !== 'number' || idx.pe <= 0) return null;
+  const alt = idx.peAlt?.value;
+  if (typeof alt !== 'number' || alt <= 0) return null;
+  const gap = Math.abs(alt - idx.pe) / idx.pe;
+  if (gap < PE_SOURCE_GAP) return null;
+  return {
+    main: idx.pe,
+    alt,
+    gap,
+    source: idx.peAlt?.source ?? '另一来源',
+    reason: `同日两个口径的 PE 是 ${idx.pe} 与 ${alt}，差 ${(gap * 100).toFixed(
+      0
+    )}%：整体法把亏损样本算进分母，剔除亏损口径只统计还在赚钱的公司。前者回答「整个行业按利润回本要几年」，后者回答「赚钱的那部分要几年」——两个都对，但会得出相反的贵贱结论`,
+  };
+}
+
 export function etfThreeLayer(e: Etf, idx: EtfIndex | undefined, peers?: Etf[]): LayerResult[] {
   const out: LayerResult[] = [];
   const limit = premiumLimit(e);
@@ -958,6 +1013,17 @@ export function etfThreeLayer(e: Etf, idx: EtfIndex | undefined, peers?: Etf[]):
         headline = `${idx!.name} ${p.basis} ${p.value.toFixed(0)}，偏贵${tagText}`;
       }
       detail = [own?.reason, rel?.reason, idx?.peCaveat].filter(Boolean).join('｜');
+
+      /* PE 来源分歧：两个口径都成立、结论却相反。这时「偏贵 / 偏便宜 / 中性」
+         三个词都不诚实——诚实的是「说不清」。所以覆盖掉刚才的判定。 */
+      const srcConflict = peSourceConflict(idx);
+      if (srcConflict) {
+        state = 'partial';
+        headline = `${idx!.name} PE ${idx!.pe}（${p.basis} ${p.value.toFixed(
+          0
+        )}）与另一口径 ${srcConflict.alt} 差 ${(srcConflict.gap * 100).toFixed(0)}%，贵贱说不清`;
+        detail = [srcConflict.reason, detail].filter(Boolean).join('｜');
+      }
     }
     out.push({
       layer: 2,

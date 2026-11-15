@@ -7,6 +7,7 @@ import {
   etfPending,
   indexPercentile,
   indexValuation,
+  peSourceConflict,
   percentileWindowConflict,
   percentileReliability,
   peerFee,
@@ -215,6 +216,29 @@ const divergences = data.indices
         鼠标悬停可以看到具体原因。
       </span>
     </div>
+    {data.indices
+      .map((i) => ({ i, ps: peSourceConflict(i) }))
+      .filter((x) => x.ps)
+      .map(({ i, ps }) => (
+        <div class="notice" style="border-color:rgba(245,166,35,.45);margin-top:14px">
+          <strong>
+            {i.name}（{i.code}）同一天有两个 PE：{ps!.main} 和 {ps!.alt}，差{' '}
+            {(ps!.gap * 100).toFixed(0)}%。
+          </strong>
+          <div class="small" style="margin-top:6px;line-height:1.8">
+            两个数都像正常市盈率，看不出谁错——差别在<strong>分母里有没有亏损样本</strong>。
+            整体法把亏损公司算进分母，行业利润变小、PE 就高，回答的是「整个行业按利润回本要几年」；
+            剔除亏损口径只统计还在赚钱的公司，PE 就低，回答的是「赚钱的那部分要几年」。
+            <br />
+            麻烦的是结论会翻：整体法 {i.pePct.y10}% 分位（偏贵），另一口径
+            {i.peAlt?.pct5y ?? ''}% 分位（便宜）。
+            <strong>同一个东西两个价钱，说明「贵不贵」这件事本身还没有答案。</strong>
+            规则据此硬编码：<span class="mono">两口径差 &gt; {Math.round(0.2 * 100)}% → 估值层最高只判部分通过</span>。
+            这不是「贵」，是「说不清」——给一个数比给两个数更需要理由。
+          </div>
+        </div>
+      ))}
+
     {data.indices
       .map((i) => ({ i, wc: percentileWindowConflict(i) }))
       .filter((x) => x.wc)

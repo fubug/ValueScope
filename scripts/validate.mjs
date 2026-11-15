@@ -18,6 +18,8 @@ import {
   impliedPayoutRatio,
   indexValuation,
   PAYOUT_CEILING,
+  PE_SOURCE_GAP,
+  peSourceConflict,
   percentileReliability,
   percentileWindowConflict,
   threeLayer,
@@ -295,6 +297,27 @@ const etfs = read('data/etfs.json');
        高股息叙事最常见的漏洞是分子滞后于分母：股息率的分子是按上一年利润派发的现金，
        分母是今天的股价；而 PE 的分母是最近四季度已经下滑的净利润。利润先跌、分红后跌，
        算出来的股息率就被虚高，利差自然「通过」绝对锚。 */
+    /* ---- PE 来源分歧：两个口径都成立、结论相反 ----
+       光伏那次的 -65.91 vs 22.54 差 88 倍，一眼能看出错；电力的 22.43 vs 17.75 只差 21%，
+       两个都像正常市盈率，但分位一个是 73%（贵）一个是 25.84%（便宜）。这种「看不出来的错」
+       必须在 peCaveat 里写明，否则页面只会留下一个数，读者会以为它有确定含义。 */
+    const psc = peSourceConflict(i);
+    if (psc && (typeof i.peCaveat !== 'string' || !/口径|整体法|剔除/.test(i.peCaveat))) {
+      errors.push(
+        `${tag} 同一指数两个 PE 口径差 ${(psc.gap * 100).toFixed(0)}%（${psc.main} vs ${psc.alt}），peCaveat 未说明差异来源`
+      );
+    }
+    if (psc && i.peAlt?.pct5y != null && typeof i.pePct.y10 === 'number') {
+      // 两个口径的分位若落在不同档（一贵一便宜），估值层绝不能判通过
+      const altCheap = i.peAlt.pct5y <= 35;
+      const mainExpensive = i.pePct.y10 >= 65;
+      if (altCheap && mainExpensive) {
+        warnings.push(
+          `${tag} 两个口径给出相反结论：整体法 ${i.pePct.y10}%（偏贵）、剔除亏损 ${i.peAlt.pct5y}%（便宜）——估值层已按「说不清」处理`
+        );
+      }
+    }
+
     const payout = impliedPayoutRatio(i);
     if (payout != null && payout > PAYOUT_CEILING) {
       if (typeof i.peCaveat !== 'string' || !/派息率/.test(i.peCaveat)) {

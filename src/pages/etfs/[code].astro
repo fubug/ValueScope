@@ -9,6 +9,7 @@ import {
   indexValuation,
   pbPercentile,
   PAYOUT_CEILING,
+  peSourceConflict,
   percentileWindowConflict,
   premiumInFeeYears,
   premiumLimit,
@@ -42,6 +43,7 @@ const feeYears = premiumInFeeYears(e);
 const val = indexValuation(idx);
 const pbOnly = val?.kind === 'pb';
 const wc = percentileWindowConflict(idx);
+const psc = peSourceConflict(idx);
 const payout = impliedPayoutRatio(idx);
 const payoutHigh = payout != null && payout > PAYOUT_CEILING;
 
@@ -239,6 +241,18 @@ const pctColor = (v: number) =>
           分子是按上一年利润派出去的现金，分母是今天已经跌过的股价，而 PE 的分母是最近四季度
           已经下滑的净利润。利润先跌、分红后跌，股息率就被虚高了。所以「股息率 − 国债」的利差
           在这里只能算「看起来过了」，它假设股息可持续，而分红率已经没有继续提的空间。
+        </p>
+      )}
+      {psc && (
+        <p
+          class="small"
+          style="margin:12px 0 0;padding:12px;background:var(--panel-2);border-left:2px solid var(--fair);border-radius:0 4px 4px 0;line-height:1.8"
+        >
+          <strong style="color:var(--fair)">同一天两个 PE：{psc.main} 与 {psc.alt}，差 {(psc.gap * 100).toFixed(0)}%。</strong>
+          {psc.reason}。另一来源来自 {psc.source}
+          {idx.peAlt?.pct5y != null ? `，它给的分位是 ${idx.peAlt.pct5y}%（便宜）` : ''}，
+          与整体法的 {idx.pePct.y10}%（偏贵）正好相反。
+          <strong>所以估值层不判「贵」也不判「便宜」，只判「说不清」。</strong>
         </p>
       )}
       {idx.peCaveat && (
