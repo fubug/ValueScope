@@ -14,6 +14,10 @@ const groups = [
   { status: 'avoid' as const, hint: '看着便宜，但不该买——便宜有便宜的原因' },
 ];
 
+const hasBuy = data.stocks.some((s) => s.status === 'buy');
+const closest = sorted.find((s) => s.status === 'watch' || s.status === 'buy');
+const closestMos = closest ? marginOfSafety(closest) : null;
+
 const mosColor = (v: number | null) =>
   v == null ? 'var(--dim)' : v >= 0.2 ? 'var(--cheap)' : v >= 0 ? 'var(--fair)' : 'var(--expensive)';
 ---
@@ -24,6 +28,17 @@ const mosColor = (v: number | null) =>
     <div class="notice">
       <strong>当前含结构示例数据</strong>：标有 <span class="badge unknown">示例</span> 的条目，价格与合理价值是占位数值，只用来演示排序与安全边际怎么算，<strong>不可用于决策</strong>。
       换成你自己的标的时，编辑 <span class="mono">data/stocks.json</span>，把 <span class="mono">sample</span> 改为 <span class="mono">false</span> 并填入真实数据。
+    </div>
+  )}
+
+  {!hasBuy && (
+    <div class="notice info">
+      <strong>当前没有标的进入买入区间</strong>：站内的「买入区间」定义为合理价值 × 0.8，也就是要求 20% 的安全边际。
+      {closest && closestMos != null && (
+        <>目前最接近的是 <a href={`${base}/stocks/${closest.ticker}/`}>{closest.name}</a>（安全边际 {(closestMos * 100).toFixed(1)}%，距买入价还差约{' '}
+        {((0.2 - closestMos) / 0.8 * 100).toFixed(0)}%）。</>
+      )}
+      这不是数据缺失，而是结论——按价值标准，现在这 {data.stocks.length} 只都还没到「值得出手」的价格。
     </div>
   )}
 
