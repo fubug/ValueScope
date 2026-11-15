@@ -1,49 +1,156 @@
 ---
 import Base from '../../layouts/Base.astro';
 import stocksData from '../../../data/stocks.json';
-import { sortStocks, marginOfSafety, STATUS_LABEL, type StocksFile } from '../../lib/rules';
+import {
+  sortStocks,
+  marginOfSafety,
+  deriveStatus,
+  threeLayer,
+  buyZoneOf,
+  distanceToBuy,
+  STATUS_LABEL,
+  STATE_LABEL,
+  CERTAINTY_LABEL,
+  REQUIRED_DISCOUNT,
+  ANCHOR_MIN_SPREAD,
+  PAYOUT_MAX,
+  type StocksFile,
+  type Stock,
+} from '../../lib/rules';
 
 const data = stocksData as unknown as StocksFile;
+const rf = data.meta.riskFree.value;
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
-const sorted = sortStocks(data.stocks);
+const sorted = sortStocks(data.stocks, rf);
 const hasSample = data.stocks.some((s) => s.sample);
 
+const statusOf = (s: Stock) => deriveStatus(s, rf);
+
 const groups = [
-  { status: 'buy' as const, hint: '价格已进入买入区间，且有安全边际' },
-  { status: 'watch' as const, hint: '方向对但价格或证据不足，等触发条件' },
-  { status: 'avoid' as const, hint: '看着便宜，但不该买——便宜有便宜的原因' },
+  { status: 'buy' as const, hint: '三层全部通过：绝对锚够宽、折价够深、没有已触发的硬伤' },
+  { status: 'watch' as const, hint: '价格没到，或绝对锚不够宽——方向可能对，但不是出手的理由' },
+  { status: 'avoid' as const, hint: '折价已经够，但硬伤已触发——便宜有便宜的原因' },
 ];
 
-const hasBuy = data.stocks.some((s) => s.status === 'buy');
-const closest = sorted.find((s) => s.status === 'watch' || s.status === 'buy');
+const buyCount = data.stocks.filter((s) => statusOf(s) === 'buy').length;
+const closest = sorted[0];
 const closestMos = closest ? marginOfSafety(closest) : null;
+const closestGap = closest ? distanceToBuy(closest) : null;
+const closestLayers = closest ? threeLayer(closest, rf) : [];
+const closestFailed = closestLayers.filter((l) => l.state !== 'pass');
 
 const mosColor = (v: number | null) =>
   v == null ? 'var(--dim)' : v >= 0.2 ? 'var(--cheap)' : v >= 0 ? 'var(--fair)' : 'var(--expensive)';
+
+const STATE_CLASS = { pass: 'cheap', partial: 'fair', fail: 'expensive' } as const;
+const fmtPct = (v: number | null) => (v == null ? '—' : `${(v * 100).toFixed(1)}%`);
 ---
-<Base title="A股个股" subtitle="只做价值分析：算出合理价值区间，再看现价给了多少安全边际。排序规则是「状态 → 安全边际」，不是「看好程度」。">
+
+<Base
+  title="A股个股"
+  subtitle="只做价值分析。三层过滤器：绝对锚（股息率 vs 国债）→ 相对锚（相对自身合理价值的折价）→ 反证（硬伤是否已触发）。买入价与状态全部由规则派生，不手填。"
+>
   <h1>A 股个股</h1>
 
   {hasSample && (
     <div class="notice">
-      <strong>当前含结构示例数据</strong>：标有 <span class="badge unknown">示例</span> 的条目，价格与合理价值是占位数值，只用来演示排序与安全边际怎么算，<strong>不可用于决策</strong>。
-      换成你自己的标的时，编辑 <span class="mono">data/stocks.json</span>，把 <span class="mono">sample</span> 改为 <span class="mono">false</span> 并填入真实数据。
+      <strong>当前含结构示例数据</strong>：标有 <span class="badge unknown">示例</span> 的条目，价格与合理价值是占位数值，<strong>不可用于决策</strong>。
     </div>
   )}
 
-  {!hasBuy && (
+  {buyCount === 0 && closest && (
     <div class="notice info">
-      <strong>当前没有标的进入买入区间</strong>：站内的「买入区间」定义为合理价值 × 0.8，也就是要求 20% 的安全边际。
-      {closest && closestMos != null && (
-        <>目前最接近的是 <a href={`${base}/stocks/${closest.ticker}/`}>{closest.name}</a>（安全边际 {(closestMos * 100).toFixed(1)}%，距买入价还差约{' '}
-        {((0.2 - closestMos) / 0.8 * 100).toFixed(0)}%）。</>
+      <strong>当前 0 只三层全过。</strong>
+      {closestFailed.length === 0 ? (
+        <>排序第一的 <a href={`${base}/stocks/${closest.ticker}/`}>{closest.name}</a> 三层全过。</>
+      ) : (
+        <>
+          最接近的是 <a href={`${base}/stocks/${closest.ticker}/`}>{closest.name}</a>（安全边际 {fmtPct(closestMos)}，
+          距买入价 <strong>还差 {fmtPct(closestGap)}</strong>），它的卡点在
+          <strong>{closestFailed.map((l) => `第 ${l.layer} 层`).join('、')}</strong>。
+        </>
       )}
-      这不是数据缺失，而是结论——按价值标准，现在这 {data.stocks.length} 只都还没到「值得出手」的价格。
+      <div style="margin-top:8px">
+        这个排序不再按「安全边际」绝对值排，而是按<strong>距买入价</strong>排——因为门槛随确定性变化，
+        安全边际 15% 对一只低确定性公司可能不够，对高确定性公司已经够了。
+      </div>
     </div>
   )}
+
+  <div class="section-head">
+    <h2>三层过滤器</h2>
+    <span class="hint">卡在哪一层，比「贵还是便宜」更有用</span>
+  </div>
+
+  <div class="card" style="overflow-x:auto">
+    <table>
+      <thead>
+        <tr>
+          <th>标的</th>
+          <th class="num">确定性</th>
+          <th class="num">① 绝对锚</th>
+          <th class="num">② 相对锚</th>
+          <th class="num">③ 反证</th>
+          <th class="num">买入价</th>
+          <th class="num">距买入价</th>
+          <th class="num">状态</th>
+        </tr>
+      </thead>
+      <tbody>
+        {sorted.map((s) => {
+          const layers = threeLayer(s, rf);
+          const bz = buyZoneOf(s);
+          const dist = distanceToBuy(s);
+          const st = statusOf(s);
+          return (
+            <tr>
+              <td>
+                <a href={`${base}/stocks/${s.ticker}/`} style="font-weight:550">{s.name}</a>
+                <div class="small dim mono">{s.exchange} {s.ticker}</div>
+              </td>
+              <td class="num small">
+                {CERTAINTY_LABEL[s.certainty]}
+                <div class="dim mono" style="font-size:11px">要求 -{(REQUIRED_DISCOUNT[s.certainty] * 100).toFixed(0)}%</div>
+              </td>
+              {layers.map((l) => (
+                <td class="num">
+                  <span class={`badge ${STATE_CLASS[l.state]}`} title={l.detail} style="cursor:help">
+                    {STATE_LABEL[l.state]}
+                  </span>
+                  <div class="dim" style="font-size:11px;margin-top:3px;max-width:16ch;margin-left:auto">{l.headline}</div>
+                </td>
+              ))}
+              <td class="num mono">{bz.normal == null ? '—' : bz.normal.toFixed(0)}</td>
+              <td
+                class="num"
+                style="font-weight:600"
+              >
+                {dist == null ? '—' : dist > 0 ? `+${(dist * 100).toFixed(1)}%` : '已进入'}
+              </td>
+              <td class="num"><span class={`badge ${st}`}>{STATUS_LABEL[st]}</span></td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+    <p class="small dim" style="margin:14px 0 0;line-height:1.7">
+      鼠标悬停「通过／部分／未过」可看该层的具体数值。<strong>①绝对锚</strong>：股息率 − 10 年国债（{rf}%）≥ {ANCHOR_MIN_SPREAD}pct，
+      且派息率 &lt; {PAYOUT_MAX}%（防止借债分红）。<strong>②相对锚</strong>：安全边际 ≥ 确定性对应的折价门槛。
+      <strong>③反证</strong>：写死的可证伪条件，一旦触发即一票否决，不能再被「便宜」抵消。
+    </p>
+  </div>
+
+  <div class="notice" style="margin-top:14px">
+    <strong>口径变更（2026-11-15）：这把尺子换了，结论的顺序也换了。</strong>
+    旧口径是「统一要求合理价值打八折」，它有两个问题：一是当 10 年国债从 3% 跌到 {rf}% 时，
+    同样打八折对应的绝对性价比完全变了，而旧规则里没有利率；二是 20% 对茅台这种高确定性公司过于苛刻、
+    对平安这种 EV 假设存疑的公司又过于宽松。改成按确定性分级后，
+    <strong>最接近买入区的不再是中国平安（旧口径下差 6%），而是美的（差 {fmtPct(closestGap)}）</strong>——
+    因为平安被判定为低确定性且 NBV 硬伤已触发，要求折价从 20% 抬到 32%。
+  </div>
 
   {groups.map((g) => {
-    const list = sorted.filter((s) => s.status === g.status);
+    const list = sorted.filter((s) => statusOf(s) === g.status);
     if (list.length === 0) return null;
     return (
       <>
@@ -64,12 +171,14 @@ const mosColor = (v: number | null) =>
                 <th class="num">安全边际</th>
                 <th class="num">买入区间</th>
                 <th class="num">PE / PB</th>
+                <th class="num">股息率</th>
                 <th class="num">复盘日</th>
               </tr>
             </thead>
             <tbody>
               {list.map((s) => {
                 const mos = marginOfSafety(s);
+                const bz = buyZoneOf(s);
                 return (
                   <tr>
                     <td>
@@ -85,13 +194,11 @@ const mosColor = (v: number | null) =>
                         <div class="small dim mono" style="font-size:11px">{s.fairValue.low}–{s.fairValue.high}</div>
                       )}
                     </td>
-                    <td class="num" style={`color:${mosColor(mos)};font-weight:600`}>
-                      {mos == null ? '—' : `${(mos * 100).toFixed(1)}%`}
-                    </td>
+                    <td class="num" style={`color:${mosColor(mos)};font-weight:600`}>{fmtPct(mos)}</td>
                     <td class="num">
-                      {s.buyZone.normal == null ? '—' : s.buyZone.normal}
-                      {s.buyZone.aggressive != null && (
-                        <div class="small dim mono" style="font-size:11px">激进 {s.buyZone.aggressive}</div>
+                      {bz.normal == null ? '—' : bz.normal.toFixed(0)}
+                      {bz.aggressive != null && (
+                        <div class="small dim mono" style="font-size:11px">激进 {bz.aggressive.toFixed(0)}</div>
                       )}
                     </td>
                     <td class="num">
@@ -99,6 +206,7 @@ const mosColor = (v: number | null) =>
                       <span class="dim"> / </span>
                       {s.valuation.pb == null ? '—' : `${s.valuation.pb}`}
                     </td>
+                    <td class="num">{s.valuation.dividendYield == null ? '—' : `${s.valuation.dividendYield}%`}</td>
                     <td class="num small dim">{s.lastReviewed}</td>
                   </tr>
                 );
@@ -111,7 +219,8 @@ const mosColor = (v: number | null) =>
   })}
 
   <div class="notice info" style="margin-top:28px">
-    <strong>关于「便宜但不买」这一类</strong>：它存在的意义是防止把低估值当成买入理由。典型的场景是估值分位极低、但盈利预测还在下修通道上——分位法的前提是估值中枢不变，当行业逻辑切换（比如从成长股定价切到周期制造业定价）时，中枢本身在移动，低分位会自动「自我修复」。所以这一类必须单列，而不是混在「观察」里。
-    安全边际颜色：<span style="color:var(--cheap)">≥20% 绿</span>、<span style="color:var(--fair)">0–20% 黄</span>、<span style="color:var(--expensive)">负值红</span>（现价高于合理价值）。
+    <strong>关于「便宜但不买」这一类</strong>：它存在的意义是防止把低估值当成买入理由。典型场景是估值分位极低、
+    但盈利预测还在下修通道上——分位法的前提是估值中枢不变，当行业逻辑切换时中枢本身在移动，低分位会自动「自我修复」。
+    所以这一类必须单列，而不是混在「观察」里。当前 6 只里没有一只落进这一类，因为它们连折价门槛都没过。
   </div>
 </Base>

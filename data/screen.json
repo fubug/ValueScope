@@ -1,0 +1,102 @@
+{
+  "meta": {
+    "snapshot": "2026-11-06",
+    "riskFree": { "value": 1.6, "label": "中国 10 年期国债", "asOf": "2026-11-13" },
+    "source": "东吴证券《中小盘行业点评：破净股，行业分布与市值结构》（2026-11-08，数据截至 2026-11-06 收盘）；全市场与分层指数估值快照（2026-11-06）",
+    "note": "本页只做板块级统计，不含任何个股结论——这些板块恰好是三层过滤器测不准的地方，见「为什么没进个股池」。个股结论必须在做完生意本质与估值交叉验证之后才写，不拿板块便宜替代个股便宜。"
+  },
+  "breadth": {
+    "total": 5577,
+    "pbValid": 5511,
+    "belowBook": 501,
+    "belowBookPct": 9.1,
+    "belowBookMcapSharePct": 22.5,
+    "medianPbAll": 2.43,
+    "medianPbBelowBook": 0.81,
+    "medianDyAll": 1.11,
+    "medianDyBelowBook": 2.65,
+    "belowBookDyAbove3": 158,
+    "belowBookLoss": 153,
+    "belowBookLossPct": 30.5
+  },
+  "indices": [
+    {
+      "name": "全市场（除创业板）",
+      "count": 4240,
+      "pe": 31.3,
+      "pePct": { "y3": 38, "y5": 59, "y10": 53 },
+      "pb": 2.22,
+      "pbPct": { "y3": 31, "y5": 27, "y10": 33 },
+      "note": "中位数口径"
+    },
+    {
+      "name": "主板（沪+深）",
+      "count": 3192,
+      "pe": 28.69,
+      "pePct": { "y3": 47, "y5": 53, "y10": 42 },
+      "pb": 1.98,
+      "pbPct": { "y3": 30, "y5": 19, "y10": 14 },
+      "note": "PB 已在十年 14% 分位，是全场最便宜的一块"
+    },
+    {
+      "name": "创业板综",
+      "count": 1410,
+      "pe": 50.77,
+      "pePct": { "y3": 47, "y5": 68, "y10": 64 },
+      "pb": 2.89,
+      "pbPct": { "y3": 34, "y5": 29, "y10": 19 },
+      "note": "PE 十年 64% 分位，PB 只有 19% 分位——盈利被摊薄，不是估值低"
+    },
+    {
+      "name": "科创板",
+      "count": 616,
+      "pe": 57.72,
+      "pePct": { "y3": 58, "y5": 72, "y10": 56 },
+      "pb": 3.45,
+      "pbPct": { "y3": 57, "y5": 43, "y10": 30 },
+      "note": "全场最贵，PE 五年 72% 分位"
+    }
+  ],
+  "sectorBreakdown": [
+    { "name": "银行", "belowBookPct": 100, "count": 42, "detail": "42 只全部破净，PB 中位 0.57" },
+    { "name": "钢铁", "belowBookPct": 48.8, "count": null, "detail": "重资产 + 产能置换政策外生" },
+    { "name": "房地产", "belowBookPct": 43.8, "count": 39, "detail": "39 只破净中 26 只亏损" },
+    { "name": "煤炭", "belowBookPct": 42.4, "count": null, "detail": "盈利处周期高位，PE 是假便宜" },
+    { "name": "非银金融", "belowBookPct": 41.6, "count": null, "detail": "内含价值假设比报表更难核" },
+    { "name": "电子", "belowBookPct": 0.6, "count": 3, "detail": "521 只中仅 3 只破净，与上面全在两端" },
+    { "name": "计算机", "belowBookPct": 0.3, "count": 1, "detail": "353 只中仅 1 只破净" }
+  ],
+  "mcapBuckets": [
+    { "label": "100 亿以下", "belowBookPct": 7.6 },
+    { "label": "100–200 亿", "belowBookPct": 11.9 },
+    { "label": "200–500 亿", "belowBookPct": 10.7 },
+    { "label": "500–1000 亿", "belowBookPct": 12.2 },
+    { "label": "1000 亿以上", "belowBookPct": 21.6 }
+  ],
+  "blindspots": [
+    {
+      "sector": "银行",
+      "why": "PE 的分母是净利润，而拨备计提与不良确认有滞后。在坏账暴露之前，PE 会显得很低——这个低是会计节奏造成的，不是定价错误。",
+      "rightRuler": "PB − ROE 匹配（PB ≈ (ROE−g)/(r−g)）+ 不良生成率与拨备覆盖率的趋势 + 股息率对分红的可持续性",
+      "priority": "high"
+    },
+    {
+      "sector": "房地产",
+      "why": "PB 0.5 的分母是账面净资产，而存货按历史成本计价、减值尚未计提完。折价可能只是「减值还没做」，不是「资产被低估」。",
+      "rightRuler": "重估净资产（RNAV）+ 存货跌价准备计提比例 + 销售与结算的现金回收",
+      "priority": "low"
+    },
+    {
+      "sector": "煤炭 / 钢铁",
+      "why": "PE 6 倍建立在当前价格上。价格回到中枢，PE 会自动跳到 15 倍以上——用顶部利润算出的低 PE 与低股息率都不可外推。",
+      "rightRuler": "在边际成本曲线上的位置 + 股息率对价格下跌 20% 的敏感性测试 + 资本开支周期",
+      "priority": "medium"
+    },
+    {
+      "sector": "非银金融",
+      "why": "内含价值（EV）的 4% 投资收益假设是整个估值的地基。平安的案例已经显示：净投资收益率 3.3% 时，EV 分子本身要打折，PB 低于 1 不代表便宜。",
+      "rightRuler": "EV 假设的压力测试（投资收益率 −1pct 后 EV 缩水多少）+ NBV 与同业增速的相对位置",
+      "priority": "medium"
+    }
+  ]
+}

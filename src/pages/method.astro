@@ -50,7 +50,89 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     </table>
   </div>
 
-  <div class="section-head"><h2>三、三个必须承认的局限</h2></div>
+  <div class="section-head">
+    <h2>三、个股的三层过滤器</h2>
+    <span class="hint">2026-11-15 改的，因为旧口径得出了一个看起来像偷懒的结论</span>
+  </div>
+  <div class="card">
+    <p class="muted">
+      旧口径是「现价 ≤ 合理价值 × 0.8 才买」，统一 20% 折价。六只标的复核下来全部「需观察」，
+      当时的第一反应是「A 股没有便宜货」，但把数据摊开看，这个解释是错的：这六只平均 PE 14.7 倍，
+      全 A 中位数 21.2 倍——它们是市场里偏便宜的那一半。真正的毛病在尺子本身：
+    </p>
+    <ul class="clean" style="padding-left:20px;line-height:1.9;margin-top:10px">
+      <li><strong>只有相对锚，没有绝对锚。</strong>「相对自己历史打八折」回答不了「相对无风险利率值不值」。当 10 年国债从 3% 掉到 1.60%，同样打八折对应的绝对性价比完全变了，而旧规则里根本没有利率这个变量。</li>
+      <li><strong>20% 不分确定性，两头都错。</strong>对茅台这种现金流可预测的公司，要求打八折等于要求「只在危机时买」（历史上 PE 低于 17.6 倍的时间不足 10%）；对平安这种 EV 假设存疑的公司，20% 又太宽松——它的折价可能只是对分子缩水的提前定价。</li>
+      <li><strong>没有一票否决位。</strong>「便宜」会把「硬伤」抵掉，于是「估值低 + 盈利下修」这种最危险的组合反而排在最前面。</li>
+    </ul>
+  </div>
+
+  <div class="card" style="overflow-x:auto;margin-top:14px">
+    <table>
+      <thead>
+        <tr><th>层</th><th>问的问题</th><th>判据</th><th>不通过的后果</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>① 绝对锚</strong></td>
+          <td>相对无风险利率，这笔钱值不值得锁在这里</td>
+          <td class="mono small">股息率 − 10Y国债 ≥ 2.0pct，且派息率 &lt; 70%</td>
+          <td>不构成出手理由（即使相对便宜）</td>
+        </tr>
+        <tr>
+          <td><strong>② 相对锚</strong></td>
+          <td>相对它自己的合理价值，折价够不够深</td>
+          <td class="mono small">安全边际 ≥ 确定性对应的门槛</td>
+          <td>价格没到，等</td>
+        </tr>
+        <tr>
+          <td><strong>③ 反证</strong></td>
+          <td>有没有已触发的硬伤</td>
+          <td class="mono small">写死的可证伪条件，逐季核对</td>
+          <td>一票否决，不得进入买入区</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="small dim" style="margin:14px 0 0">
+      ②的门槛按确定性分级：<strong>高 12% / 中 22% / 低 32%</strong>。这是全站唯一需要主观判断的输入——
+      定级错，门槛就错，所以每只的定级理由都写在页面上（现金流可预测性、护城河、需求是否依赖单一政策）。
+      改 <span class="mono">src/lib/rules.ts</span> 里的 <span class="mono">REQUIRED_DISCOUNT</span>，全站同步生效。
+    </p>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h3 style="margin-top:0">状态是算出来的，不是填的</h3>
+    <table style="margin-top:8px">
+      <thead><tr><th>组合</th><th>状态</th><th>含义</th></tr></thead>
+      <tbody>
+        <tr><td class="mono small">①②③ 全过</td><td><span class="badge buy">可买入区间</span></td><td>三层同时成立，才允许出手</td></tr>
+        <tr><td class="mono small">②过 + ③触发</td><td><span class="badge avoid">便宜但不买</span></td><td>折价够，但硬伤已成立——便宜有便宜的原因</td></tr>
+        <tr><td class="mono small">②不过</td><td><span class="badge watch">需观察</span></td><td>价格问题，等触发条件，不用改判断</td></tr>
+        <tr><td class="mono small">②过 + ③过 + ①不过</td><td><span class="badge watch">需观察</span></td><td>相对便宜但绝对吸引力不足，单独不构成出手理由</td></tr>
+      </tbody>
+    </table>
+    <p class="small muted" style="margin:14px 0 0">
+      买入价也不再手填：<span class="mono">合理价值中值 × (1 − 要求折价)</span>，激进档再多要 10 个百分点。
+      这样阈值只有一份，改规则即全局生效，不会出现「这只按 15% 算、那只按 25% 算」的隐性不一致。
+    </p>
+  </div>
+
+  <div class="card" style="margin-top:14px;border-color:rgba(255,91,91,.28)">
+    <h3 style="margin-top:0;color:var(--expensive)">这个改法仍然没解决的问题</h3>
+    <p class="small muted" style="margin:0 0 10px">
+      <strong>中枢本身会漂移。</strong>②的相对锚依赖「合理价值中值」，而中值来自历史 PE 中枢或 DDM。
+      当一家公司的定价框架发生切换——成长股从 30–50 倍切到成熟股 15–18 倍，或白酒从「带金融属性的稀缺品」变成「价格稳定的消费品」——
+      历史上的中枢就失去了参照意义，此时「分位低」不是便宜，是中枢在下移。东鹏就是标准案例：PE 处在 1.67% 分位，
+      但 PEG 1.8、单季大单品负增长，低分位反而是陷阱。
+    </p>
+    <p class="small muted" style="margin:0">
+      目前只能用③反证条件去打补丁（比如东鹏的「大单品连续两季负增长」），这是症状级的修补，不是根治。
+      根治需要识别「估值锚迁移」本身，而这件事没有可靠的量化判据——它更像是一个需要人来判断的重大事项，
+      所以面板把它做成显式字段，而不是藏进模型里。
+    </p>
+  </div>
+
+  <div class="section-head"><h2>四、三个必须承认的局限</h2></div>
   <div class="grid grid-3">
     <div class="card">
       <h3>分位口径不统一</h3>
@@ -72,7 +154,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     </div>
   </div>
 
-  <div class="section-head"><h2>四、数据来源（{data.meta.snapshot} 快照）</h2></div>
+  <div class="section-head"><h2>五、数据来源（{data.meta.snapshot} 快照）</h2></div>
   <div class="card">
     <ul class="clean" style="padding-left:20px">
       {data.meta.sources.map((s) => (
@@ -84,14 +166,19 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     </p>
   </div>
 
-  <div class="section-head"><h2>五、怎么维护</h2></div>
+  <div class="section-head"><h2>六、怎么维护</h2></div>
   <div class="card">
     <ul class="clean" style="padding-left:20px">
       <li>市场数据：<span class="mono">data/markets.json</span>，改完提交即触发部署。</li>
-      <li>个股：<span class="mono">data/stocks.json</span>，把 <span class="mono">sample</span> 改为 <span class="mono">false</span> 并填真实价格；页面自动按「状态 → 安全边际」重排。</li>
+      <li>个股：<span class="mono">data/stocks.json</span>。新增一只必须填 <span class="mono">certainty</span>（定级）、<span class="mono">payoutRatio</span>、<span class="mono">anchorNote</span>、<span class="mono">veto</span>，<strong>不需要也不能填 status 与买入价</strong>——它们由规则算出来。</li>
+      <li>低估值扫描：<span class="mono">data/screen.json</span>，只放板块级统计，不放个股结论。</li>
       <li>行业观点：<span class="mono">data/sectors.json</span>，每条必须带反证条件，否则这条观点没有可推翻的边界。</li>
-      <li>动手前跑 <span class="mono">npm run check</span>，校验字段完整性与日期新鲜度，防止再出现「数据停了三个月没人发现」。</li>
+      <li>动手前跑 <span class="mono">npm run check</span>。它直接 import 页面用的同一份规则，所以校验口径与展示口径不可能漂移；漏填任何一层，CI 直接失败。</li>
     </ul>
+    <p class="small muted" style="margin:12px 0 0;padding-top:12px;border-top:1px solid var(--line)">
+      <strong>为什么要在 CI 里卡这个：</strong>2026-11 发现的问题不是「规则写错了」，而是「评估时漏了一步」。
+      人会忘，所以把「先看绝对锚、再看折价、再核对反证」这三步从习惯变成数据结构——漏了就构建不出来。
+    </p>
     <p style="margin:14px 0 0">
       <a href={`${base}/`} style="color:var(--accent)">← 回到市场总览</a>
     </p>

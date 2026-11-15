@@ -7,7 +7,7 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "check": "node scripts/validate.mjs"
+    "check": "node --no-warnings --experimental-strip-types scripts/validate.mjs"
   },
   "dependencies": {
     "astro": "^5.6.1"

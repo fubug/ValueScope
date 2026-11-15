@@ -13,8 +13,9 @@ Astro 构建，GitHub Pages 自动部署，数据就是仓库里的 JSON，改�
 |---|---|
 | `/` | 全球市场横向对比：PE / PB / 股息率 / 估值分位 / ERP / 性价比档位 |
 | `/markets/[id]` | 单市场详情：5/10/20 年分位、口径问题、判定链、人工结论 |
-| `/stocks` | A 股个股：按「可买入 / 需观察 / 便宜但不买」分组，组内按安全边际排序 |
-| `/stocks/[ticker]` | 个股详情：合理价值区间、买入区间、估值方法、反证条件 |
+| `/stocks` | A 股个股：三层过滤器总表（卡在哪一层一眼可见）+ 按距买入价排序的分组 |
+| `/stocks/[ticker]` | 个股详情：三层校验、合理价值区间、估值方法、反证条件 |
+| `/undervalued` | 低估值扫描：破净分布、股息分层，以及「为什么这些板块测不准」 |
 | `/sectors` | 行业看法：每条观点必须带反证条件 |
 | `/method` | 方法论：判定规则、数据来源、已知局限 |
 
@@ -37,7 +38,8 @@ npm run build   # 构建到 dist/
 | 文件 | 改什么 |
 |---|---|
 | `data/markets.json` | 市场估值快照。改 `snapshot` 日期，核对分位口径后填入 `percentiles` |
-| `data/stocks.json` | 个股。把 `sample` 改为 `false` 并填真实价格，页面自动重排 |
+| `data/stocks.json` | 个股。新增一只必须填 `certainty`（高/中/低确定性）、`payoutRatio`、`anchorNote`、`veto`；status 与买入价自动派生，不要手填 |
+| `data/screen.json` | 低估值扫描的板块级统计（破净分布、盲区说明），不放个股结论 |
 | `data/sectors.json` | 行业观点，更新 `pePercentileBasis` 的数据日期 |
 
 ## 已知缺口

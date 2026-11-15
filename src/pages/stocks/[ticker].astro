@@ -1,7 +1,21 @@
 ---
 import Base from '../../layouts/Base.astro';
 import stocksData from '../../../data/stocks.json';
-import { marginOfSafety, STATUS_LABEL, type Stock, type StocksFile } from '../../lib/rules';
+import {
+  marginOfSafety,
+  STATUS_LABEL,
+  STATE_LABEL,
+  CERTAINTY_LABEL,
+  CERTAINTY_HINT,
+  threeLayer,
+  buyZoneOf,
+  deriveStatus,
+  distanceToBuy,
+  dividendSpread,
+  REQUIRED_DISCOUNT,
+  type Stock,
+  type StocksFile,
+} from '../../lib/rules';
 
 export function getStaticPaths() {
   return (stocksData as unknown as StocksFile).stocks.map((s) => ({
@@ -11,10 +25,20 @@ export function getStaticPaths() {
 }
 
 const data = stocksData as unknown as StocksFile;
+const rf = data.meta.riskFree.value;
 const { s } = Astro.props as { s: Stock };
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const mos = marginOfSafety(s);
 const mosColor = mos == null ? 'var(--dim)' : mos >= 0.2 ? 'var(--cheap)' : mos >= 0 ? 'var(--fair)' : 'var(--expensive)';
+
+const layers = threeLayer(s, rf);
+const bz = buyZoneOf(s);
+const st = deriveStatus(s, rf);
+const dist = distanceToBuy(s);
+const spread = dividendSpread(s, rf);
+const STATE_CLASS = { pass: 'cheap', partial: 'fair', fail: 'expensive' } as const;
+const STATE_ICON = { pass: '✓', partial: '△', fail: '✗' } as const;
+const passedCount = layers.filter((l) => l.state === 'pass').length;
 
 const upsideToMid = s.price != null && s.fairValue.mid != null && s.price > 0
   ? ((s.fairValue.mid - s.price) / s.price) * 100
@@ -47,6 +71,46 @@ const yoyColor = (v: number | null | undefined) =>
     </div>
   )}
 
+  <div class="section-head">
+    <h2>三层校验</h2>
+    <span class="hint">{passedCount} / 3 通过 · 状态由规则派生，不手填</span>
+  </div>
+  <div class="card" style="padding:0;overflow:hidden">
+    {layers.map((l) => (
+      <div
+        style={`display:grid;grid-template-columns:44px 1fr;gap:14px;padding:14px 18px;border-bottom:1px solid var(--line)`}
+      >
+        <div style="display:flex;align-items:flex-start;justify-content:center;padding-top:1px">
+          <span
+            class={`badge ${STATE_CLASS[l.state]}`}
+            style="width:30px;height:30px;display:grid;place-items:center;font-size:14px;border-radius:8px"
+            title={STATE_LABEL[l.state]}
+          >
+            {STATE_ICON[l.state]}
+          </span>
+        </div>
+        <div>
+          <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap">
+            <strong style="font-size:14px">第 {l.layer} 层 · {l.name}</strong>
+            <span style={`font-size:12.5px;color:var(--${l.state === 'pass' ? 'cheap' : l.state === 'partial' ? 'fair' : 'expensive'})`}>
+              {l.headline}
+            </span>
+          </div>
+          <div class="small muted" style="margin-top:5px;line-height:1.65">{l.detail}</div>
+        </div>
+      </div>
+    ))}
+    <div style="padding:12px 18px;background:rgba(255,255,255,.02)">
+      <span class="small dim">
+        判定口径：{CERTAINTY_LABEL[s.certainty]}（{CERTAINTY_HINT[s.certainty]}），
+        要求 {(REQUIRED_DISCOUNT[s.certainty] * 100).toFixed(0)}% 折价 → 买入价
+        {bz.normal == null ? '—' : bz.normal.toFixed(2)}。
+        股息利差 {spread == null ? '—' : `${spread.toFixed(2)}pct`}（对 {rf}% 国债）。
+        当前距买入价 {dist == null ? '—' : dist > 0 ? `+${(dist * 100).toFixed(1)}%` : '已进入'}。
+      </span>
+    </div>
+  </div>
+
   <div class="grid grid-3" style="margin-top:16px">
     <div class="card">
       <div class="kv"><span class="k">现价</span><span class={`v ${s.price == null ? 'na' : ''}`}>{s.price == null ? '待录入' : s.price.toFixed(2)}</span></div>
@@ -71,8 +135,8 @@ const yoyColor = (v: number | null | undefined) =>
 
   <div class="card" style="margin-top:14px">
     <div class="stat-row">
-      <div class="kv"><span class="k">状态</span><span style="margin-top:2px"><span class={`badge ${s.status}`}>{STATUS_LABEL[s.status]}</span></span></div>
-      <div class="kv"><span class="k">买入区间</span><span class={`v ${s.buyZone.normal == null ? 'na' : ''}`}>{s.buyZone.normal == null ? '待录入' : s.buyZone.normal}</span><span class="sub">激进 {s.buyZone.aggressive ?? '—'}</span></div>
+      <div class="kv"><span class="k">状态</span><span style="margin-top:2px"><span class={`badge ${st}`}>{STATUS_LABEL[st]}</span></span></div>
+      <div class="kv"><span class="k">买入价</span><span class={`v ${bz.normal == null ? 'na' : ''}`}>{bz.normal == null ? '待录入' : bz.normal.toFixed(2)}</span><span class="sub">激进 {bz.aggressive == null ? '—' : bz.aggressive.toFixed(2)}</span></div>
       <div class="kv"><span class="k">PE (TTM)</span><span class={`v ${s.valuation.peTtm == null ? 'na' : ''}`}>{s.valuation.peTtm ?? '—'}</span></div>
       <div class="kv"><span class="k">PB</span><span class={`v ${s.valuation.pb == null ? 'na' : ''}`}>{s.valuation.pb ?? '—'}</span></div>
       <div class="kv"><span class="k">股息率</span><span class={`v ${s.valuation.dividendYield == null ? 'na' : ''}`}>{s.valuation.dividendYield == null ? '—' : `${s.valuation.dividendYield}%`}</span></div>
