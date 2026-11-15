@@ -14,7 +14,7 @@ const bk = data.banks;
 const vd = data.verdict;
 
 const idx = (etfsData as unknown as EtfsFile).indices.find((i) => i.id === 'csi-divlow');
-const layers = idx ? etfThreeLayer((etfsData as unknown as EtfsFile).etfs.find((e) => e.code === '512890')!, idx) : [];
+const layers = idx ? etfThreeLayer((etfsData as unknown as EtfsFile).etfs.find((e) => e.code === '512890')!, idx, (etfsData as unknown as EtfsFile).etfs) : [];
 
 const pctColor = (p: number) =>
   p <= 15 ? 'var(--cheap)' : p <= 35 ? 'var(--fair)' : p <= 65 ? 'var(--muted)' : 'var(--expensive)';

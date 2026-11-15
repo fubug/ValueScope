@@ -30,9 +30,9 @@ const { e } = Astro.props as { e: Etf };
 const idx: EtfIndex | undefined = data.indices.find((i) => i.id === e.indexId);
 const base = import.meta.env.BASE_URL.replace(/^\/$/, '').replace(/\/$/, '');
 
-const layers = etfThreeLayer(e, idx);
-const st = deriveEtfStatus(e, idx);
-const pending = etfPending(e, idx);
+const layers = etfThreeLayer(e, idx, data.etfs);
+const st = deriveEtfStatus(e, idx, data.etfs);
+const pending = etfPending(e, idx, data.etfs);
 const passedCount = layers.filter((l) => l.state === 'pass').length;
 const feeYears = premiumInFeeYears(e);
 const p = indexPercentile(idx);

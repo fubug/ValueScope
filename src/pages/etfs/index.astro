@@ -7,6 +7,7 @@ import {
   etfPending,
   indexPercentile,
   percentileReliability,
+  peerFee,
   premiumInFeeYears,
   isQdii,
   premiumLimit,
@@ -24,7 +25,7 @@ const data = etfsData as unknown as EtfsFile;
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const idxOf = (id: string) => data.indices.find((i) => i.id === id);
 
-const stOf = (e: Etf) => deriveEtfStatus(e, idxOf(e.indexId));
+const stOf = (e: Etf) => deriveEtfStatus(e, idxOf(e.indexId), data.etfs);
 const rank = { buy: 0, watch: 1, avoid: 2 } as const;
 const sorted = [...data.etfs].sort((a, b) => {
   const r = rank[stOf(a)] - rank[stOf(b)];
@@ -40,7 +41,7 @@ const STATE_CLASS = { pass: 'cheap', partial: 'fair', fail: 'expensive' } as con
  * 混成一个数字会让人以为「全部不能买」，那正是这个面板要避免的误读。
  */
 const blockers = data.etfs.map((e) => {
-  const L = etfThreeLayer(e, idxOf(e.indexId));
+  const L = etfThreeLayer(e, idxOf(e.indexId), data.etfs);
   const fails = L.filter((l) => l.state === 'fail');
   const partials = L.filter((l) => l.state === 'partial');
   let kind: 'ready' | 'evidence' | 'one-fail' | 'hard-fail';
@@ -271,6 +272,14 @@ const divergences = data.indices
     并不是「贵」，而是<strong>便宜的证明链不完整</strong>——分位样本不可比、或折溢价没取到。
     这两类要分开看，因为前者等指数结构稳定下来就会消失，后者补一次数据就能消失，
     而「贵」只能等价格。
+    {blockerCount.ready > 0 && (
+      <>
+        <br />
+        <strong>「三层全过」只说明工具与估值同时合格，不是仓位建议。</strong>
+        它不评估波动与回撤——港股通互联网这类品种年化波动 30%+、最大回撤接近 50%，
+        仓位要按你能承受的回撤倒推，而不是按「便宜」推。
+      </>
+    )}
   </p>
   <div class="card" style="overflow-x:auto">
     <table>
@@ -289,9 +298,9 @@ const divergences = data.indices
       <tbody>
         {sorted.map((e) => {
           const idx = idxOf(e.indexId);
-          const layers = etfThreeLayer(e, idx);
+          const layers = etfThreeLayer(e, idx, data.etfs);
           const st = stOf(e);
-          const pending = etfPending(e, idx);
+          const pending = etfPending(e, idx, data.etfs);
           return (
             <tr>
               <td>
@@ -310,7 +319,22 @@ const divergences = data.indices
               <td class="num mono" style={`font-weight:600;color:${e.premium != null && e.premium > 2 ? 'var(--expensive)' : 'var(--muted)'}`}>
                 {e.premium == null ? '—' : `${e.premium > 0 ? '+' : ''}${e.premium.toFixed(2)}%`}
               </td>
-              <td class="num mono">{e.fee.total == null ? '—' : `${e.fee.total}%`}</td>
+              <td class="num mono">
+                {e.fee.total == null ? '—' : `${e.fee.total}%`}
+                {(() => {
+                  const pf = peerFee(e, data.etfs);
+                  if (!pf || e.fee.total == null || pf.ratio < 1.2) return null;
+                  return (
+                    <div
+                      class="dim"
+                      style={`font-size:10.5px;margin-top:3px;color:${pf.ratio >= 1.5 ? 'var(--expensive)' : 'var(--dim)'}`}
+                      title={`同指数可比产品最低 ${pf.min}%/年（${pf.codes.join('、')}）`}
+                    >
+                      最低 {pf.min}%
+                    </div>
+                  );
+                })()}
+              </td>
               <td class="num">
                 <span class={`badge ${st}`}>{STATUS_LABEL[st]}</span>
                 {pending > 0 && <div class="dim" style="font-size:10.5px;margin-top:3px">{pending} 项待核</div>}
@@ -325,6 +349,8 @@ const divergences = data.indices
       是确定性的损耗；综合费率上限 {ETF_FEE_MAX}%/年。<br />
       ② <strong>估值层</strong>：只看底层指数 PE 分位（≤35 通过 / 35–65 中性 / &gt;65 偏贵），不看 ETF 自己的价格。<br />
       ③ <strong>可用层</strong>：申购状态 + 日均成交额（下限 {ETF_TURNOVER_MIN} 亿）。工具执行不了，前两层都白算。<br />
+      <strong>① 还有一条相对锚</strong>：同一指数的多只产品里，费率比最低那只高 {0.2}pct 以上且达到 1.5 倍时，成本层降为「部分」——
+      0.60% 本身不贵（在 {ETF_FEE_MAX}% 上限内），但同款只要 0.20% 时，多付的 0.40pct/年 买不到任何东西。费率列下面那行「最低 X%」就是这条规则的结果。<br />
       <strong>关于「待核」</strong>：标为「部分」的层不一定是坏消息，多数是快照里没取到折溢价（需要盘中 IOPV）。
       缺数据不能当不合格用，所以状态上单列，不并进「回避」。
     </p>

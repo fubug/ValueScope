@@ -240,6 +240,29 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   </div>
 
   <div class="card" style="margin-top:14px;border-left:2px solid var(--expensive)">
+    <h3 style="margin-top:0">成本的相对锚：绝对阈值抓不到「同款更便宜」</h3>
+    <p class="muted" style="margin-top:0">
+      费率上限 1.0%/年这条绝对阈值有个盲区：0.60% 合格、0.20% 也合格，
+      但当 0.60% 和 0.20% 跟踪<strong>同一个指数、规模几乎相同、成交量几乎相同</strong>时，
+      买 0.60% 那只等于每年白送 0.40pct。港股通互联网把这个问题变成了活案例：
+      513040（易方达）与 513770（华宝）同为 52 亿规模、日均 4.6 亿成交、跟踪同一个 931637，
+      费率 0.20% vs 0.60%。一年下来资金已经用脚投票——513040 份额 +5.08%，513770 份额 -34.32%。
+    </p>
+    <div class="small" style="background:var(--panel-2);padding:10px 12px;border-radius:4px;line-height:1.8">
+      <strong>规则化处理：</strong>同一 indexId 下，若某只产品的费率比最低那只高出
+      <span class="mono">0.2pct</span> 以上、且达到最低值的 <span class="mono">1.5 倍</span>，
+      成本层降为「部分」，费率列下方标注「最低 X%」。只降级不否决——
+      规模大 16 倍的产品（如红利低波的 512890 vs 159547）确实可能值一点流动性溢价，
+      这个取舍留给人判断，规则只负责把「多付了 3 倍」这个事实摆到明面上。
+    </div>
+    <p class="small dim" style="margin:10px 0 0">
+      这条规则生效后，全表第一次出现「可配置」（513040），同时 512890、513770、513180 三只
+      从「成本合格」变为「成本部分合格」——它们的绝对费率都没问题，问题只在<strong>同款有更便宜的</strong>。
+      三个状态数字的变化本身就是信息：费率战的受益者应该被自动识别出来，而不是靠每次人工比对。
+    </p>
+  </div>
+
+  <div class="card" style="margin-top:14px;border-left:2px solid var(--expensive)">
     <h3 style="margin-top:0">QDII 假折价：净值滞后制造的捡钱错觉</h3>
     <p class="muted" style="margin-top:0">
       行情软件显示恒生科技 ETF「折价 2.3%」，算式是「当日价格 ÷ 最新公布净值 − 1」。

@@ -599,6 +599,15 @@ export const ETF_PREMIUM_MAX = 1.0;
 export const ETF_PREMIUM_MAX_QDII = 2.0;
 /** 综合费率上限（%/年）：管理 + 托管 */
 export const ETF_FEE_MAX = 1.0;
+/**
+ * 同指数相对成本：绝对阈值只能抓「费率离谱」，抓不到「同一指数有 0.20% 的产品，你买了 0.60%」。
+ * 0.60% 本身不算贵（低于 1.0% 上限），但同表里有一模一样的产品只要 0.20%，
+ * 多付的 0.40pct/年 买不到任何东西——这在 513040 与 513770 上是活案例：
+ * 同为 52 亿规模、4.6 亿日均成交、跟踪同一个 931637，费率差 3 倍。
+ * 只降级为 partial 而非 fail：规模大的产品可能确实值一点流动性溢价，这个取舍留给人判断。
+ */
+export const PEER_FEE_GAP = 0.2;
+export const PEER_FEE_RATIO = 1.5;
 /** 日均成交额下限（亿元），低于此滑点会吃掉收益 */
 export const ETF_TURNOVER_MIN = 0.5;
 
@@ -618,6 +627,23 @@ export function premiumLimit(e: Etf): number {
 export function premiumInFeeYears(e: Etf): number | null {
   if (e.premium == null || e.fee.total == null || e.fee.total <= 0) return null;
   return e.premium / e.fee.total;
+}
+
+/** 同指数内的最低费率。peers 缺省时返回 null，规则退化为「只看绝对阈值」 */
+export function peerFee(
+  e: Etf,
+  peers?: Etf[]
+): { min: number; count: number; codes: string[]; ratio: number } | null {
+  if (!peers || peers.length < 2 || typeof e.fee?.total !== 'number') return null;
+  const same = peers.filter((p) => p.indexId === e.indexId && typeof p.fee?.total === 'number');
+  if (same.length < 2) return null;
+  const min = Math.min(...same.map((p) => p.fee!.total as number));
+  return {
+    min,
+    count: same.length,
+    codes: same.filter((p) => p.fee!.total === min).map((p) => p.code),
+    ratio: min > 0 ? e.fee!.total / min : 1,
+  };
 }
 
 /** 底层指数的主分位：PE 10 年优先，其次 5 年、3 年 */
@@ -693,7 +719,7 @@ export function percentileReliability(
 }
 
 
-export function etfThreeLayer(e: Etf, idx: EtfIndex | undefined): LayerResult[] {
+export function etfThreeLayer(e: Etf, idx: EtfIndex | undefined, peers?: Etf[]): LayerResult[] {
   const out: LayerResult[] = [];
   const limit = premiumLimit(e);
 
@@ -702,6 +728,7 @@ export function etfThreeLayer(e: Etf, idx: EtfIndex | undefined): LayerResult[] 
     let state: CheckState;
     let headline: string;
     const feeYears = premiumInFeeYears(e);
+    const peer = peerFee(e, peers);
     if (e.premium == null) {
       state = 'partial';
       headline = '缺折溢价数据，成本无法验证';
@@ -716,16 +743,25 @@ export function etfThreeLayer(e: Etf, idx: EtfIndex | undefined): LayerResult[] 
     } else if (e.fee.total > ETF_FEE_MAX) {
       state = 'partial';
       headline = `溢价 ${e.premium.toFixed(2)}% 尚可，但费率 ${e.fee.total}% 偏高`;
+    } else if (peer && e.fee.total - peer.min >= PEER_FEE_GAP && e.fee.total >= peer.min * PEER_FEE_RATIO) {
+      /* 绝对费率合格，但同指数有更便宜的同款产品 */
+      state = 'partial';
+      headline = `溢价 ${e.premium.toFixed(2)}% 尚可，但费率 ${e.fee.total}% 是同指数最低 ${peer.min}% 的 ${peer.ratio.toFixed(1)} 倍`;
     } else {
       state = 'pass';
       headline = `溢价 ${e.premium.toFixed(2)}%，综合费率 ${e.fee.total}%`;
     }
+    const peerText = peer
+      ? `｜同指数 ${peer.count} 只可比产品中最低 ${peer.min}%/年（${peer.codes.join('、')}）${
+          peer.ratio > 1 ? `，本只为其 ${peer.ratio.toFixed(1)} 倍` : '，本只即最低档'
+        }`
+      : '';
     out.push({
       layer: 1,
       name: '成本层：溢价 + 费率',
       state,
       headline,
-      detail: `${e.premiumNote}｜费率：${e.fee.note}`,
+      detail: `${e.premiumNote}｜费率：${e.fee.note}${peerText}`,
     });
   }
 
@@ -819,8 +855,8 @@ export function etfThreeLayer(e: Etf, idx: EtfIndex | undefined): LayerResult[] 
  * ETF 也不设「便宜但不买」——它的复合失败通常是「指数便宜但工具贵」，
  * 等溢价收敛即可，归入需观察。
  */
-export function deriveEtfStatus(e: Etf, idx: EtfIndex | undefined): 'buy' | 'watch' | 'avoid' {
-  const layers = etfThreeLayer(e, idx);
+export function deriveEtfStatus(e: Etf, idx: EtfIndex | undefined, peers?: Etf[]): 'buy' | 'watch' | 'avoid' {
+  const layers = etfThreeLayer(e, idx, peers);
   const passed = layers.filter((l) => l.state === 'pass').length;
   const failed = layers.filter((l) => l.state === 'fail').length;
   if (passed === 3) return 'buy';
@@ -829,6 +865,6 @@ export function deriveEtfStatus(e: Etf, idx: EtfIndex | undefined): 'buy' | 'wat
 }
 
 /** 待核项数：partial 的层数。页面要给用户看到「这个结论有多结实」 */
-export function etfPending(e: Etf, idx: EtfIndex | undefined): number {
-  return etfThreeLayer(e, idx).filter((l) => l.state === 'partial').length;
+export function etfPending(e: Etf, idx: EtfIndex | undefined, peers?: Etf[]): number {
+  return etfThreeLayer(e, idx, peers).filter((l) => l.state === 'partial').length;
 }

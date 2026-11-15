@@ -346,7 +346,7 @@ const etfs = read('data/etfs.json');
 
     // 状态与派生结果对齐（ETF 的 status 不落库，这里只校验派生结果本身不会异常）
     const idx = (etfs.indices ?? []).find((i) => i.id === e.indexId);
-    const derived = deriveEtfStatus(e, idx);
+    const derived = deriveEtfStatus(e, idx, etfs.etfs);
     if (!['buy', 'watch', 'avoid'].includes(derived)) {
       errors.push(`${tag} 派生状态异常：${derived}`);
     }
@@ -432,7 +432,7 @@ const div = read('data/dividend.json');
   const dIdx = (etfs.indices ?? []).find((i) => i.id === 'csi-divlow');
   const dEtf = (etfs.etfs ?? []).find((e) => e.code === '512890');
   if (dIdx && dEtf && div.verdict?.status) {
-    const derived = deriveEtfStatus(dEtf, dIdx);
+    const derived = deriveEtfStatus(dEtf, dIdx, etfs.etfs);
     if (derived !== div.verdict.status) {
       errors.push(
         `${tag} verdict.status=${div.verdict.status}，但按三层复算是 ${derived}——改结论要改输入或改规则，不能只改字`
