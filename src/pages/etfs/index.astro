@@ -383,9 +383,9 @@ const divergences = data.indices
         <span class="small" style="color:var(--muted)">{entry.headline}</span>
         <span class="small dim mono" style="margin-left:auto">{rows.length} 只 · 数据日 {idx.asOf}</span>
       </div>
-      {entry.blocks.length > 0 && (
+      {entry.blocks.filter((b) => b !== entry.headline).length > 0 && (
         <p class="small" style="margin:10px 0 0;color:var(--fair);line-height:1.75">
-          不给方向的理由：{entry.blocks.join('；')}。
+          不给方向的理由：{entry.blocks.filter((b) => b !== entry.headline).join('；')}。
           <span class="dim">分位数值仍然保留在下面那张指数表里——读得出数字，读不出结论。</span>
         </p>
       )}

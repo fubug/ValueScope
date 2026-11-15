@@ -19,8 +19,15 @@ import {
   toolRanking,
   ACTION_LABEL,
   ETF_DATA_STALE_DAYS,
+  ETF_DIVERGENCE_GAP,
+  MARKET_DATA_STALE_DAYS,
   impliedPayoutRatio,
   indexValuation,
+  judge,
+  pickPrimaryPercentile,
+  percentileIntegrity,
+  erpAdjustGate,
+  metricDivergence,
   PAYOUT_CEILING,
   PE_SOURCE_GAP,
   peSourceConflict,
@@ -54,6 +61,7 @@ else {
 }
 
 const seen = new Set();
+const mktTally = {};
 for (const m of markets.markets ?? []) {
   const tag = `market[${m.id ?? '?'}]`;
   if (!m.id) errors.push(`${tag} 缺少 id`);
@@ -73,19 +81,93 @@ for (const m of markets.markets ?? []) {
     errors.push(`${tag} 置信度 ${m.confidence} 但 caveats 为空，必须说明原因`);
   }
 
-  // 有结论但没有任何估值分位 → 规则会判 unknown，属于配置错误
+  /* --- 不变量 1：每格分位必须自带窗口长度与来源 ---
+     旧结构用 y10 命名却装 15 年数据，7 个市场里 4 个装错。
+     窗口是数据的一部分，不是字段名的一部分。 */
   const p = m.percentiles ?? {};
-  const hasPct = ['pe', 'pb', 'cape'].some((k) =>
-    ['y5', 'y10', 'y20'].some((w) => typeof p[k]?.[w] === 'number')
-  );
-  if (m.analystView && !hasPct) {
+  for (const kind of ['pe', 'pb', 'cape']) {
+    const ws = p[kind]?.windows;
+    if (ws == null) continue;
+    if (!Array.isArray(ws) || ws.length === 0) {
+      errors.push(`${tag} percentiles.${kind}.windows 必须是非空数组`);
+      continue;
+    }
+    for (const w of ws) {
+      if (typeof w.years !== 'number' || w.years <= 0) errors.push(`${tag} ${kind} 有窗口缺 years`);
+      if (typeof w.value !== 'number' || w.value < 0 || w.value > 100) errors.push(`${tag} ${kind} 分位超出 0-100`);
+      if (!w.label) errors.push(`${tag} ${kind}(${w.years}y) 缺 label——窗口描述不能靠推断`);
+      if (!w.source) errors.push(`${tag} ${kind}(${w.years}y) 缺 source`);
+    }
+  }
+
+  // 估值数据必须有时点，且不能太旧
+  if (!m.valuationAsOf) {
+    warnings.push(`${tag} 缺 valuationAsOf——估值数据没有自己的时点，无法判断是否过期`);
+  } else if (daysSince(m.valuationAsOf) > MARKET_DATA_STALE_DAYS) {
+    warnings.push(`${tag} 估值数据已 ${daysSince(m.valuationAsOf)} 天未更新（阈值 ${MARKET_DATA_STALE_DAYS} 天）`);
+  }
+
+  /* --- 不变量 2-5：可信度必须真的影响档位 --- */
+  const v = judge(m);
+  const pick = pickPrimaryPercentile(m);
+  const integ = percentileIntegrity(m, pick);
+  mktTally[v.label] = (mktTally[v.label] ?? 0) + 1;
+
+  if (pick) {
+    // 2. 窗口未披露的必须标 approx，否则规则会把它当 10 年用
+    if (pick.years < 10 && !pick.approx) {
+      errors.push(`${tag} 主分位窗口 ${pick.years} 年，短于 10 年却没标 approx`);
+    }
+  }
+
+  // 3. broken 必须判 unknown——「说不清」不能被写成「偏便宜」
+  if (integ.level === 'broken' && v.tier !== 'unknown') {
+    errors.push(`${tag} 证据链 broken，但档位是「${v.label}」——硬缺口不给方向`);
+  }
+
+  // 4. suspect 不得停在两个极端档
+  if (integ.level === 'suspect' && (v.tier === 'very-cheap' || v.tier === 'very-rich')) {
+    errors.push(`${tag} 口径 suspect 却给了极端档「${v.label}」——封顶失效`);
+  }
+
+  // 5. 有档位就必须有 basis，且 basis 必须带窗口
+  if (v.tier !== 'unknown') {
+    if (!v.basis) errors.push(`${tag} 有档位「${v.label}」但没有 basis`);
+    else if (!v.basis.years) errors.push(`${tag} basis 缺窗口长度——分位不说窗口等于没说`);
+  }
+
+  // 有结论但没有任何估值分位 → 规则会判 unknown，属于配置错误
+  if (m.analystView && !pick) {
     warnings.push(`${tag} 无估值分位但有 analystView，页面会显示「数据不足」，确认是有意的`);
+  }
+
+  /* --- 不变量 6：人工结论与机器矛盾时必须解释 --- */
+  const stance = m.analystView?.stance;
+  if (stance && v.tier !== 'unknown') {
+    const bullish = stance === '加仓' || stance === '持有';
+    const expensive = v.tier === 'rich' || v.tier === 'very-rich';
+    if (bullish && expensive && (m.analystView.thesis?.length ?? 0) < 60) {
+      errors.push(`${tag} 机器判「${v.label}」而人工「${stance}」，thesis 必须说明在违反哪条规则`);
+    }
   }
 
   // ERP 与无风险利率并存时做一次算术校验，抓录入错误
   const { erp, riskFree } = m.rates ?? {};
   if (typeof erp === 'number' && typeof riskFree === 'number' && Math.abs(erp) > 20) {
     warnings.push(`${tag} ERP=${erp}% 绝对值过大，检查是否漏了百分号换算`);
+  }
+  // ERP 修正开着，就必须有可校验的利率分位
+  const gate = erpAdjustGate(m);
+  if (gate.allowed && typeof m.rates?.riskFreePercentile !== 'number') {
+    errors.push(`${tag} ERP 修正被允许，但缺 riskFreePercentile——门槛形同虚设`);
+  }
+}
+
+/* 单一档位占比哨兵：全部市场落在同一档，说明阈值或数据出了问题 */
+const totalMkt = (markets.markets ?? []).length;
+for (const [label, n] of Object.entries(mktTally)) {
+  if (totalMkt >= 5 && n / totalMkt > 0.6) {
+    warnings.push(`市场档位「${label}」占 ${n}/${totalMkt}（>60%）——检查阈值是否失灵或数据是否同源`);
   }
 }
 
@@ -514,6 +596,30 @@ const etfs = read('data/etfs.json');
     }
     if (seen.size !== members.length) {
       errors.push(`index[${i.id}] 工具排名漏了产品：${members.length} 只只排出 ${seen.size} 个位置`);
+    }
+  }
+
+  /* ---- 指数级不变量：PE 便宜 + PB 贵 不能直接判「便宜」----
+     2026-11 由用户一次追问暴露：纳指 PE 分位 28（便宜）、PB 分位 88.4（贵），
+     entryAssessment 只读 PE，判了「偏便宜」，和它自己的 caveat
+     「PE 分位 28% 与 PB 分位 88% 的背离无法用 ROE 复算……在补齐 PB 之前不作结论」
+     直接冲突。这条是那次追问留下的哨兵。 */
+  for (const i of etfs.indices ?? []) {
+    const d = metricDivergence(i);
+    const ea = entryAssessment(i);
+    if (d && d.explainedByRoe === null && ea.grade === 'cheap') {
+      errors.push(
+        `index[${i.id}] PE 分位 ${d.pePct} 与 PB 分位 ${d.pbPct} 差 ${d.gap.toFixed(0)} 点且无法归因，却判「便宜」——背离未解释不得给方向`
+      );
+    }
+    if (d && d.explainedByRoe === false && ea.grade === 'cheap') {
+      errors.push(
+        `index[${i.id}] PB 背离经 ROE 复算对不上，却仍判「便宜」——ROE 解释不了就不是同一件事的两个侧面`
+      );
+    }
+    // 背离但级别不够触发阈值时，至少要能算出差距
+    if (d && d.gap < ETF_DIVERGENCE_GAP) {
+      errors.push(`index[${i.id}] metricDivergence 返回了低于阈值的背离，阈值判断有误`);
     }
   }
 

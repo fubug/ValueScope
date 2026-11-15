@@ -2,7 +2,17 @@
 import Base from '../../layouts/Base.astro';
 import PercentileBar from '../../components/PercentileBar.astro';
 import marketsData from '../../../data/markets.json';
-import { judge, CONFIDENCE_LABEL, type Market, type MarketsFile, type PercentileSet } from '../../lib/rules';
+import {
+  judge,
+  pickPrimaryPercentile,
+  erpAdjustGate,
+  CONFIDENCE_LABEL,
+  INTEGRITY_LABEL,
+  KIND_LABEL,
+  type Market,
+  type MarketsFile,
+  type PctWindow,
+} from '../../lib/rules';
 
 export function getStaticPaths() {
   return (marketsData as unknown as MarketsFile).markets.map((m) => ({
@@ -16,25 +26,27 @@ const data = marketsData as unknown as MarketsFile;
 const { m } = Astro.props as { m: Market };
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const v = judge(m);
+const gate = erpAdjustGate(m);
 
 const fmt = (x: number | null | undefined, d = 2) => (x == null ? '—' : x.toFixed(d));
 
-const windows: Array<{ key: keyof PercentileSet; label: string }> = [
-  { key: 'y5', label: '近 5 年' },
-  { key: 'y10', label: '近 10 年' },
-  { key: 'y20', label: '近 20 年' },
-];
+/* 每格分位都带着自己的窗口，页面按「指标 → 窗口列表」展示，
+   不再假装所有市场的分位都是 5/10/20 年三档。 */
+const metricRows = (['pe', 'cape', 'pb'] as const)
+  .map((kind) => {
+    const wins = (m.percentiles?.[kind]?.windows ?? []) as PctWindow[];
+    if (!wins.length) return null;
+    const sorted = [...wins].sort((a, b) => b.years - a.years);
+    const primary = sorted[0];
+    const isPrimary = v.basis?.kind === kind && v.basis.years === primary.years;
+    return { kind, name: KIND_LABEL[kind], windows: sorted, primary, isPrimary };
+  })
+  .filter((x): x is NonNullable<typeof x> => x !== null);
 
-const metrics = [
-  { key: 'pe' as const, name: 'PE', unit: '倍', value: m.valuation.peTtm },
-  { key: 'pb' as const, name: 'PB', unit: '倍', value: m.valuation.pb },
-  { key: 'cape' as const, name: 'CAPE', unit: '倍', value: m.valuation.cape },
-];
+const hasAnyPercentile = metricRows.length > 0;
+const metricName = m.valuation.peTtm != null ? 'PE' : m.valuation.cape != null ? 'CAPE' : m.valuation.pb != null ? 'PB' : null;
 
-const hasAnyPercentile = metrics.some((mt) => {
-  const set = m.percentiles[mt.key] as PercentileSet | undefined;
-  return set && (set.y5 != null || set.y10 != null || set.y20 != null);
-});
+const integrityClass = v.integrity === 'broken' ? 'expensive' : v.integrity === 'suspect' ? 'fair' : 'cheap';
 ---
 <Base title={`${m.name} · ${m.indexName}`}>
   <p class="small" style="margin-bottom:8px">
@@ -43,18 +55,39 @@ const hasAnyPercentile = metrics.some((mt) => {
 
   <h1>{m.flag} {m.name} · {m.indexName}</h1>
   <p class="lede">
-    数据日 {m.levelAsOf ?? '—'} · 置信度：{CONFIDENCE_LABEL[m.confidence]}
+    点位日 {m.levelAsOf ?? '—'} · 估值日 {m.valuationAsOf ?? '—'} · 置信度：{CONFIDENCE_LABEL[m.confidence]}
     {m.level != null && <span class="mono"> · 点位 {m.level.toLocaleString('en-US')} {m.currency}</span>}
   </p>
 
+  <!-- 两个维度，不合成一个词：档位说「贵不贵」，可信度说「这句话能信几分」 -->
   <div class="card" style="margin-top:20px">
-    <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+    <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
       <span class={`badge ${v.className}`} style="font-size:13px;padding:4px 10px">{v.label}</span>
+      <span class={`badge ${integrityClass}`} style="font-size:12px;padding:3px 9px">{INTEGRITY_LABEL[v.integrity]}</span>
       <span class="small dim">规则判定（非人工打分）</span>
     </div>
+
     <ul class="clean" style="margin-top:12px">
       {v.reasons.map((r) => <li>{r}</li>)}
     </ul>
+
+    {v.integrityIssues.length > 0 && (
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">
+        <div class="small dim" style="margin-bottom:6px">降级理由（这些直接影响了档位）</div>
+        <ul class="clean" style="padding-left:18px">
+          {v.integrityIssues.map((r) => <li class="small">{r}</li>)}
+        </ul>
+      </div>
+    )}
+
+    {v.integrityNotices.length > 0 && (
+      <div style="margin-top:12px">
+        <div class="small dim" style="margin-bottom:6px">可比性说明（读数本身可用，但不能和别市场比大小）</div>
+        <ul class="clean" style="padding-left:18px">
+          {v.integrityNotices.map((r) => <li class="small dim">{r}</li>)}
+        </ul>
+      </div>
+    )}
   </div>
 
   <div class="grid grid-3" style="margin-top:16px">
@@ -71,43 +104,50 @@ const hasAnyPercentile = metrics.some((mt) => {
 
   <div class="section-head">
     <h2>估值分位</h2>
-    <span class="hint">同一指标在不同时间窗口里的位置，窗口越短越容易失真</span>
+    <span class="hint">每格分位都标注它自己的窗口长度——分位是相对的，不说窗口等于没说</span>
   </div>
 
   {hasAnyPercentile ? (
-    <div class="card" style="overflow-x:auto">
-      <table>
-        <thead>
-          <tr>
-            <th>指标</th>
-            <th style="min-width:200px">分位位置</th>
-            <th class="num">近 5 年</th>
-            <th class="num">近 10 年</th>
-            <th class="num">近 20 年</th>
-          </tr>
-        </thead>
-        <tbody>
-          {metrics.map((mt) => {
-            const set = (m.percentiles[mt.key] as PercentileSet | undefined) ?? {};
-            const main = set.y10 ?? set.y5 ?? set.y20 ?? null;
-            return (
+    <div class="card">
+      {metricRows.map((row, i) => (
+        <div style={i > 0 ? 'margin-top:20px;padding-top:16px;border-top:1px solid var(--line)' : ''}>
+          <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+            <strong>{row.name}</strong>
+            <span class="small dim mono">{fmt(m.valuation[row.kind === 'pe' ? 'peTtm' : row.kind === 'pb' ? 'pb' : 'cape'])} 倍</span>
+            {row.isPrimary && <span class="badge accent" style="font-size:11px">本次判定依据</span>}
+          </div>
+          <table style="margin:0">
+            <thead>
               <tr>
-                <td><strong>{mt.name}</strong><div class="small dim mono">{fmt(mt.value)} {mt.unit}</div></td>
-                <td><PercentileBar value={main} label={`${mt.name} 分位`} /></td>
-                <td class="num">{set.y5 == null ? '—' : set.y5.toFixed(1)}</td>
-                <td class="num">{set.y10 == null ? '—' : set.y10.toFixed(1)}</td>
-                <td class="num">{set.y20 == null ? '—' : set.y20.toFixed(1)}</td>
+                <th>窗口</th>
+                <th style="min-width:180px">分位位置</th>
+                <th class="num">分位</th>
+                <th>来源</th>
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      {m.percentiles.note && <p class="small dim" style="margin:12px 0 0">{m.percentiles.note}</p>}
+            </thead>
+            <tbody>
+              {row.windows.map((w) => (
+                <tr>
+                  <td>
+                    {w.label}
+                    <span class="small dim mono"> · {w.years} 年</span>
+                    {w.approx && <span class="small dim">（推断）</span>}
+                  </td>
+                  <td><PercentileBar value={w.value} label={`${row.name} ${w.years} 年`} /></td>
+                  <td class="num mono">{w.value.toFixed(1)}</td>
+                  <td class="small dim">{w.source}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+      {m.percentiles.note && <p class="small dim" style="margin:16px 0 0">{m.percentiles.note}</p>}
     </div>
   ) : (
     <div class="card">
       <p class="muted" style="margin:0">该市场暂无长期估值分位数据，因此不做档位判断。</p>
-      {m.percentiles.note && <p class="small dim" style="margin:10px 0 0">{m.percentiles.note}</p>}
+      {m.percentiles?.note && <p class="small dim" style="margin:10px 0 0">{m.percentiles.note}</p>}
     </div>
   )}
 
@@ -128,10 +168,24 @@ const hasAnyPercentile = metrics.some((mt) => {
         <span class="v" style={m.rates.erp != null && m.rates.erp < 0 ? 'color:var(--expensive)' : ''}>
           {m.rates.erp == null ? '待接入' : `${fmt(m.rates.erp)}%`}
         </span>
-        <span class="sub">{m.rates.erpPercentile == null ? '无历史分位' : `${m.rates.erpPercentile} 分位`}</span>
+        <span class="sub">
+          {m.rates.erpPercentile == null
+            ? '无历史分位'
+            : `${m.rates.erpPercentile} 分位${m.rates.riskFreePercentile == null ? ' · 不可用于修正' : ''}`}
+        </span>
       </div>
     </div>
     {m.rates.erpNote && <p class="small dim" style="margin:14px 0 0">{m.rates.erpNote}</p>}
+
+    <div class="notice" style={`margin:14px 0 0;border-left-color:${gate.allowed ? 'var(--cheap)' : 'var(--fair)'}`}>
+      <strong>{gate.allowed ? 'ERP 修正：可用' : 'ERP 修正：已关闭'}</strong>
+      <div style="margin-top:4px">{gate.why}。</div>
+      <div class="small dim" style="margin-top:6px">
+        ERP 是两个数相减：<span class="mono">1/PE − 无风险利率</span>。利率下行时 ERP 会自动升高，
+        与股票是否变便宜无关。所以只有当无风险利率自身不在历史低位时，才允许拿 ERP 去调整档位——
+        否则等于把债券端的变化记成股票端的便宜。
+      </div>
+    </div>
   </div>
 
   <div class="section-head">
@@ -148,6 +202,7 @@ const hasAnyPercentile = metrics.some((mt) => {
     </div>
     <p class="small dim" style="margin:14px 0 0">
       这一块目前是空的，原因是拿不到干净的历史长序列（见首页说明）。补数据的方式：把指数的月度或年度收盘价放进 <span class="mono">data/series/</span>，脚本会自动算年化、波动率与夏普——比抄第三方的数字更可信，因为口径自己可控。
+      在补齐之前，<strong>本页所有结论都只回答「贵不贵」，不回答「值不值得长期拿」</strong>。
     </p>
   </div>
 
@@ -171,6 +226,11 @@ const hasAnyPercentile = metrics.some((mt) => {
       <div class="card">
         <p style="margin:0 0 8px"><span class="badge fair">{m.analystView.stance}</span></p>
         <p class="muted" style="margin:0">{m.analystView.thesis}</p>
+        {v.tier !== 'unknown' && ((m.analystView.stance === '加仓' || m.analystView.stance === '持有') && (v.tier === 'rich' || v.tier === 'very-rich')) && (
+          <p class="small" style="margin:12px 0 0;color:var(--fair)">
+            注意：人工结论比机器判定乐观，理由已写在上文；两者不一致时以人工结论执行，但要知道自己在违反哪条规则。
+          </p>
+        )}
       </div>
     </>
   )}

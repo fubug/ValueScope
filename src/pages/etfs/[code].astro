@@ -141,13 +141,26 @@ const pctColor = (x: number) =>
       </div>
       {entry.blocks.length > 0 ? (
         <div class="small" style="margin:12px 0 0;line-height:1.8;color:var(--muted)">
-          不给方向的理由：
-          {entry.blocks.map((b) => (
+          {entry.blocks.length > 1 || entry.headline !== entry.blocks[0] ? '不给方向的理由：' : null}
+          {/* headline 已包含第一条理由时不重复渲染，避免同一句话出现两遍 */}
+          {entry.blocks.filter((b) => b !== entry.headline).map((b) => (
             <div>· {b}</div>
+          ))}
+          {entry.notes.map((n) => (
+            <div class="dim" style="margin-top:6px">※ {n}</div>
           ))}
           <div class="dim" style="margin-top:6px">
             这不是「数据没取到」，是「取到了但没有唯一读法」——补数据解决不了，只能等结构自己稳下来。
           </div>
+        </div>
+      ) : entry.notes.length > 0 ? (
+        <div class="small" style="margin:12px 0 0;line-height:1.8;color:var(--muted)">
+          {entry.notes.map((n) => (
+            <div class="dim">※ {n}</div>
+          ))}
+          <p style="margin:8px 0 0">
+            分位样本可信、没有窗口分歧、没有口径分歧——所以这一层可以给出方向。
+          </p>
         </div>
       ) : (
         <p class="small" style="margin:12px 0 0;line-height:1.8;color:var(--muted)">

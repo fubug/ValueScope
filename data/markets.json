@@ -4,13 +4,34 @@
     "generatedBy": "手工核对 + 公开来源摘录",
     "disclaimer": "所有数值为静态快照，非实时行情。分位为「当前值在该指标历史序列中的位置」，0=历史最便宜，100=历史最贵。不同来源的分位口径（起点年份、是否剔除亏损股、是否用 TTM）差异很大，跨市场横向比较时请看每个市场的 caveats。",
     "sources": [
-      { "label": "Shiller / multpl.com（标普500 CAPE，月度，至 2026-10）", "asOf": "2026-10" },
-      { "label": "广发宏观资配月报（标普 CAPE 40.71、股息率 1.07%、万得全A 数据）", "asOf": "2026-11-11" },
-      { "label": "东方财富指数估值（沪深300 PE 分位，10年/5年）", "asOf": "2026-11-06" },
-      { "label": "Wind / 券商周报（沪深300 PB 分位、恒生指数 PE/PB 分位、ERP）", "asOf": "2026-11-13" },
-      { "label": "NSE / niftyperatio（Nifty 50 PE 20.49、PB 3.08、股息率 1.40%）", "asOf": "2026-11-13" },
-      { "label": "SSI Research / VNDirect / Simply Wall St（VN-Index 估值与盈利）", "asOf": "2026-11-13" },
-      { "label": "同花顺全球指数估值周报（日经225 PE 与分位）", "asOf": "2026-11-07" }
+      {
+        "label": "Shiller / multpl.com（标普500 CAPE，月度，至 2026-10）",
+        "asOf": "2026-10"
+      },
+      {
+        "label": "广发宏观资配月报（标普 CAPE 40.71、股息率 1.07%、万得全A 数据）",
+        "asOf": "2026-11-11"
+      },
+      {
+        "label": "东方财富指数估值（沪深300 PE 分位，10年/5年）",
+        "asOf": "2026-11-06"
+      },
+      {
+        "label": "Wind / 券商周报（沪深300 PB 分位、恒生指数 PE/PB 分位、ERP）",
+        "asOf": "2026-11-13"
+      },
+      {
+        "label": "NSE / niftyperatio（Nifty 50 PE 20.49、PB 3.08、股息率 1.40%）",
+        "asOf": "2026-11-13"
+      },
+      {
+        "label": "SSI Research / VNDirect / Simply Wall St（VN-Index 估值与盈利）",
+        "asOf": "2026-11-13"
+      },
+      {
+        "label": "同花顺全球指数估值周报（日经225 PE 与分位）",
+        "asOf": "2026-11-07"
+      }
     ]
   },
   "markets": [
@@ -23,10 +44,41 @@
       "currency": "USD",
       "level": 7592.4,
       "levelAsOf": "2026-11-12",
-      "valuation": { "peTtm": null, "pb": null, "cape": 40.71, "dividendYield": 1.07 },
+      "valuationAsOf": "2026-10",
+      "valuation": {
+        "peTtm": null,
+        "pb": null,
+        "cape": 40.71,
+        "dividendYield": 1.07
+      },
       "percentiles": {
-        "cape": { "y5": null, "y10": 98.9, "y20": 96.3 },
-        "note": "CAPE 分位窗口为「近 15 年 98.9 分位」与「近 45 年 96.3 分位」，非严格 10/20 年。近 30 年为 94.4 分位。"
+        "cape": {
+          "windows": [
+            {
+              "years": 45,
+              "value": 96.3,
+              "label": "近 45 年",
+              "source": "Shiller / multpl.com"
+            },
+            {
+              "years": 30,
+              "value": 94.4,
+              "label": "近 30 年",
+              "source": "Shiller / multpl.com"
+            },
+            {
+              "years": 15,
+              "value": 98.9,
+              "label": "近 15 年",
+              "source": "Shiller / multpl.com"
+            }
+          ]
+        },
+        "note": "CAPE 分位窗口为「近 15 年 98.9 分位」与「近 45 年 96.3 分位」，非严格 10/20 年。近 30 年为 94.4 分位。",
+        "integrityFlags": [
+          "pb-missing",
+          "metric-mismatch"
+        ]
       },
       "rates": {
         "riskFree": 5.149,
@@ -35,8 +87,15 @@
         "erpPercentile": null,
         "erpNote": "以 CAPE 收益率（1/40.71 = 2.46%）减 10Y 美债 5.15% 计算，为负值：股票盈利收益率已低于无风险利率。"
       },
-      "longRun": { "cagr10y": null, "cagr20y": null, "sharpe10y": null },
-      "perf": { "ytd": null, "y1": null },
+      "longRun": {
+        "cagr10y": null,
+        "cagr20y": null,
+        "sharpe10y": null
+      },
+      "perf": {
+        "ytd": null,
+        "y1": null
+      },
       "confidence": "high",
       "caveats": [
         "CAPE 40.71 是 2026-10 的月度读数，历史 1871 年以来仅 18 个月份比它更高，全部集中在 1999-03 至 2000-09 之间。",
@@ -59,10 +118,40 @@
       "currency": "CNY",
       "level": null,
       "levelAsOf": null,
-      "valuation": { "peTtm": 13.5, "pb": 1.34, "cape": null, "dividendYield": null },
+      "valuationAsOf": "2026-11-06",
+      "valuation": {
+        "peTtm": 13.5,
+        "pb": 1.34,
+        "cape": null,
+        "dividendYield": null
+      },
       "percentiles": {
-        "pe": { "y5": 76.67, "y10": 69.21, "y20": null },
-        "pb": { "y5": null, "y10": 22, "y20": null },
+        "pe": {
+          "windows": [
+            {
+              "years": 10,
+              "value": 69.21,
+              "label": "近 10 年",
+              "source": "东方财富指数估值"
+            },
+            {
+              "years": 5,
+              "value": 76.67,
+              "label": "近 5 年",
+              "source": "东方财富指数估值"
+            }
+          ]
+        },
+        "pb": {
+          "windows": [
+            {
+              "years": 10,
+              "value": 22,
+              "label": "近 10 年",
+              "source": "Wind / 券商周报"
+            }
+          ]
+        },
         "note": "PE 分位来自东方财富（10 年 69.21%，5 年 76.67%）；PB 分位来自 Wind（近十年 22%）。Wind 的 PE 十年分位为 67%、发布以来 54%，与东财口径差 2-15 个百分点。"
       },
       "rates": {
@@ -72,8 +161,15 @@
         "erpPercentile": 71.62,
         "erpNote": "ERP = 1/13.5 = 7.41% 减 10Y 国债 1.62%，处于 2005 年指数发布以来 71.6% 分位（越高越便宜）。"
       },
-      "longRun": { "cagr10y": null, "cagr20y": null, "sharpe10y": null },
-      "perf": { "ytd": null, "y1": null },
+      "longRun": {
+        "cagr10y": null,
+        "cagr20y": null,
+        "sharpe10y": null
+      },
+      "perf": {
+        "ytd": null,
+        "y1": null
+      },
       "confidence": "medium",
       "caveats": [
         "PE 与 PB 分位严重背离（PE 69%、PB 22%），说明当前盈利（E）处于周期低位、而净资产（B）没有同步下跌。买 PE 高分位等于赌盈利修复，买 PB 低分位等于买资产，两者是不同的赌注。",
@@ -96,11 +192,38 @@
       "currency": "HKD",
       "level": null,
       "levelAsOf": null,
-      "valuation": { "peTtm": 10.77, "pb": 1.11, "cape": null, "dividendYield": null },
+      "valuationAsOf": "2026-11-13",
+      "valuation": {
+        "peTtm": 10.77,
+        "pb": 1.11,
+        "cape": null,
+        "dividendYield": null
+      },
       "percentiles": {
-        "pe": { "y5": null, "y10": 60, "y20": null },
-        "pb": { "y5": null, "y10": 48, "y20": null },
-        "note": "分位基准为「2010 年以来」（约 16 年），非严格 10 年。数据日 2026-11-13。"
+        "pe": {
+          "windows": [
+            {
+              "years": 16,
+              "value": 60,
+              "label": "2010 年以来（约 16 年）",
+              "source": "Wind / 券商周报"
+            }
+          ]
+        },
+        "pb": {
+          "windows": [
+            {
+              "years": 16,
+              "value": 48,
+              "label": "2010 年以来（约 16 年）",
+              "source": "Wind / 券商周报"
+            }
+          ]
+        },
+        "note": "分位基准为「2010 年以来」（约 16 年），非严格 10 年。数据日 2026-11-13。",
+        "integrityFlags": [
+          "erp-source-conflict"
+        ]
       },
       "rates": {
         "riskFree": 1.61,
@@ -109,8 +232,15 @@
         "erpPercentile": 73,
         "erpNote": "ERP 以 1/10.77 = 9.29% 减 10Y 中国国债 1.61% 计。若改用 10Y 美债 4.86% 为无风险利率，ERP 仅 4.15%（2010 年以来 7% 分位）——用哪个无风险利率，结论完全相反。"
       },
-      "longRun": { "cagr10y": null, "cagr20y": null, "sharpe10y": null },
-      "perf": { "ytd": null, "y1": null },
+      "longRun": {
+        "cagr10y": null,
+        "cagr20y": null,
+        "sharpe10y": null
+      },
+      "perf": {
+        "ytd": null,
+        "y1": null
+      },
       "confidence": "high",
       "caveats": [
         "恒指 PE 一周内从 11.09 跌到 10.77（指数 -3.45%），分位从 66% 降到 60%，单周变化较大，快照易过时。",
@@ -132,14 +262,45 @@
       "currency": "JPY",
       "level": null,
       "levelAsOf": null,
-      "valuation": { "peTtm": 14.68, "pb": null, "cape": null, "dividendYield": null },
-      "percentiles": {
-        "pe": { "y5": null, "y10": 49, "y20": null },
-        "note": "「图示历史样本的 49% 分位」，样本窗口未披露，可能短于 10 年，仅作参考。"
+      "valuationAsOf": "2026-11-07",
+      "valuation": {
+        "peTtm": 14.68,
+        "pb": null,
+        "cape": null,
+        "dividendYield": null
       },
-      "rates": { "riskFree": null, "riskFreeLabel": "10Y 日本国债", "erp": null, "erpPercentile": null },
-      "longRun": { "cagr10y": null, "cagr20y": null, "sharpe10y": null },
-      "perf": { "ytd": null, "y1": null },
+      "percentiles": {
+        "pe": {
+          "windows": [
+            {
+              "years": 10,
+              "approx": true,
+              "value": 49,
+              "label": "样本窗口未披露，按 10 年归档",
+              "source": "同花顺全球指数估值周报"
+            }
+          ]
+        },
+        "note": "「图示历史样本的 49% 分位」，样本窗口未披露，可能短于 10 年，仅作参考。",
+        "integrityFlags": [
+          "window-undisclosed"
+        ]
+      },
+      "rates": {
+        "riskFree": null,
+        "riskFreeLabel": "10Y 日本国债",
+        "erp": null,
+        "erpPercentile": null
+      },
+      "longRun": {
+        "cagr10y": null,
+        "cagr20y": null,
+        "sharpe10y": null
+      },
+      "perf": {
+        "ytd": null,
+        "y1": null
+      },
       "confidence": "medium",
       "caveats": [
         "一周内 PE 从 16.56 降到 14.68，指数跌 9.3%，属单周剧烈调整，快照代表性有限。",
@@ -161,14 +322,46 @@
       "currency": "INR",
       "level": 25144.3,
       "levelAsOf": "2026-11-13",
-      "valuation": { "peTtm": 20.49, "pb": 3.08, "cape": null, "dividendYield": 1.4 },
-      "percentiles": {
-        "pe": { "y5": null, "y10": 9.7, "y20": null },
-        "note": "10 年百分位取 niftyperatio（2026-11-11 读数 20.59 对应 9.7%ile）。另有来源称「接近长期均值 20 倍」，两者矛盾，未解决。"
+      "valuationAsOf": "2026-11-11",
+      "valuation": {
+        "peTtm": 20.49,
+        "pb": 3.08,
+        "cape": null,
+        "dividendYield": 1.4
       },
-      "rates": { "riskFree": null, "riskFreeLabel": "10Y 印度国债", "erp": null, "erpPercentile": null },
-      "longRun": { "cagr10y": null, "cagr20y": null, "sharpe10y": null },
-      "perf": { "ytd": null, "y1": -2.84 },
+      "percentiles": {
+        "pe": {
+          "windows": [
+            {
+              "years": 10,
+              "approx": true,
+              "value": 9.7,
+              "label": "10 年（NSE 改了报表口径，前后不可比）",
+              "source": "niftyperatio"
+            }
+          ]
+        },
+        "note": "10 年百分位取 niftyperatio（2026-11-11 读数 20.59 对应 9.7%ile）。另有来源称「接近长期均值 20 倍」，两者矛盾，未解决。",
+        "integrityFlags": [
+          "source-conflict",
+          "method-break"
+        ]
+      },
+      "rates": {
+        "riskFree": null,
+        "riskFreeLabel": "10Y 印度国债",
+        "erp": null,
+        "erpPercentile": null
+      },
+      "longRun": {
+        "cagr10y": null,
+        "cagr20y": null,
+        "sharpe10y": null
+      },
+      "perf": {
+        "ytd": null,
+        "y1": -2.84
+      },
       "confidence": "low",
       "caveats": [
         "分位数据存在冲突：一处给出 10 年 9.7% 分位（很便宜），另一处称 PE 20.49 接近长期均值 20（中性）。未找到第三个独立来源裁决，因此给低置信度。",
@@ -191,13 +384,31 @@
       "currency": "VND",
       "level": 1743.07,
       "levelAsOf": "2026-11-10",
-      "valuation": { "peTtm": 11.1, "pb": null, "cape": null, "dividendYield": null },
+      "valuationAsOf": "2026-11-10",
+      "valuation": {
+        "peTtm": 11.1,
+        "pb": null,
+        "cape": null,
+        "dividendYield": null
+      },
       "percentiles": {
         "note": "无长期估值分位公开数据。参照：当前 PE 11.1 倍，低于近 3 年均值 14.6 倍约 24%；VN-Index 的 12 个月滚动 PE 从 9 月底 12 倍降至 11 月初约 10.6 倍。"
       },
-      "rates": { "riskFree": null, "riskFreeLabel": "越南 1 年期存款利率（约 9%）", "erp": null, "erpPercentile": null },
-      "longRun": { "cagr10y": null, "cagr20y": null, "sharpe10y": null },
-      "perf": { "ytd": null, "y1": null },
+      "rates": {
+        "riskFree": null,
+        "riskFreeLabel": "越南 1 年期存款利率（约 9%）",
+        "erp": null,
+        "erpPercentile": null
+      },
+      "longRun": {
+        "cagr10y": null,
+        "cagr20y": null,
+        "sharpe10y": null
+      },
+      "perf": {
+        "ytd": null,
+        "y1": null
+      },
       "confidence": "medium",
       "caveats": [
         "估值便宜的一部分原因是权重集中：Vingroup 系（VIC/VHM/VRE/VPL）约占市值 29%，剔除后 PE 仅约 9 倍。买指数等于被动买房地产集团。",
@@ -220,11 +431,29 @@
       "currency": "EUR",
       "level": null,
       "levelAsOf": null,
-      "valuation": { "peTtm": null, "pb": null, "cape": null, "dividendYield": null },
+      "valuationAsOf": null,
+      "valuation": {
+        "peTtm": null,
+        "pb": null,
+        "cape": null,
+        "dividendYield": null
+      },
       "percentiles": {},
-      "rates": { "riskFree": null, "riskFreeLabel": "10Y 德国国债", "erp": null, "erpPercentile": null },
-      "longRun": { "cagr10y": null, "cagr20y": null, "sharpe10y": null },
-      "perf": { "ytd": null, "y1": null },
+      "rates": {
+        "riskFree": null,
+        "riskFreeLabel": "10Y 德国国债",
+        "erp": null,
+        "erpPercentile": null
+      },
+      "longRun": {
+        "cagr10y": null,
+        "cagr20y": null,
+        "sharpe10y": null
+      },
+      "perf": {
+        "ytd": null,
+        "y1": null
+      },
       "confidence": "low",
       "caveats": [
         "本次快照未能取得 STOXX 600 的可信估值与分位数据（多个数据源返回空值或需要 JavaScript 渲染）。",

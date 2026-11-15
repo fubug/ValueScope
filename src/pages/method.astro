@@ -19,7 +19,10 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     </p>
   </div>
 
-  <div class="section-head"><h2>二、判定规则（可直接复算）</h2></div>
+  <div class="section-head">
+    <h2>二、判定规则（可直接复算）</h2>
+    <span class="hint">2026-11-15 重写：口径可信度与档位拆成两个维度，ERP 修正加前置门槛</span>
+  </div>
   <div class="card" style="overflow-x:auto">
     <table>
       <thead>
@@ -28,26 +31,54 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       <tbody>
         <tr>
           <td>1. 取主分位</td>
-          <td class="mono" style="font-family:var(--mono);font-size:12.5px">PE·10Y → PE·5Y → PE·20Y → PB·10Y → CAPE·20Y → CAPE·10Y</td>
-          <td>按顺序取第一个有值的，避免用不同指标拼出一个「平均分位」</td>
+          <td class="mono" style="font-family:var(--mono);font-size:12.5px">指标优先 PE → CAPE → PB<br>同一指标内取最长窗口</td>
+          <td>
+            指标按「读数可信度」排序：PE 用当期盈利、最直接；CAPE 长期平滑、适合指数；PB 受回购扭曲最大。
+            旧版把 PE 的 20 年窗口排在 5 年之后、CAPE 的 20 年排在 10 年之前，两个指标内部顺序互相矛盾。
+          </td>
         </tr>
         <tr>
           <td>2. 落档</td>
           <td class="mono" style="font-family:var(--mono);font-size:12.5px">≤15 极具性价比 / ≤35 偏便宜 / ≤65 合理 / ≤85 偏贵 / &gt;85 很贵</td>
-          <td>固定阈值，不随市场调整，保证横向可比</td>
+          <td>固定阈值，不随市场调整</td>
         </tr>
         <tr>
-          <td>3. ERP 修正</td>
-          <td class="mono" style="font-family:var(--mono);font-size:12.5px">ERP 分位 ≥70 上调一档；≤30 下调一档；其余不修正</td>
-          <td>ERP 捕捉「股票相对债券」的性价比，与估值分位互补</td>
+          <td>3. 口径可信度</td>
+          <td class="mono" style="font-family:var(--mono);font-size:12.5px">clean / suspect / broken</td>
+          <td>
+            <strong>broken</strong>（来源互相矛盾、统计口径在窗口内变过、置信度为低）→ 不给方向，判「说不清」；<br>
+            <strong>suspect</strong>（PE 与 PB 分位差 ≥30 点、窗口长度是推断值、窗口未披露）→ 封顶在「偏便宜 / 偏贵」，不给两个极端档。<br>
+            旧版这个字段只渲染成一个灰色标签，不参与任何 if 分支——印度凭一个「两来源互相矛盾、且 2021 年改制使分位失真」的 9.7 分位，拿到了全站唯一的「极具性价比」。
+          </td>
         </tr>
         <tr>
-          <td>4. 置信度</td>
-          <td>high / medium / low</td>
-          <td>不改变档位，只做提示：数据有争议时不允许输出强结论</td>
+          <td>4. ERP 修正</td>
+          <td class="mono" style="font-family:var(--mono);font-size:12.5px">需 riskFreePercentile &gt; 45 才允许改档<br>有分位则 ≥70 上调一档、≤30 下调一档</td>
+          <td>
+            ERP = 1/PE − 无风险利率。利率下行时 ERP 会<strong>自动</strong>上升，与股票是否变便宜无关。
+            旧版据此上调一档，等于把债券端的变化记成股票端的便宜：A 股 PE 69 分位（偏贵）被洗成「合理」，
+            港股被洗成「偏便宜」——而港股自己的注释写着「改用美债口径，结论完全相反」。
+            拿不到利率分位就只提示、不改档。
+          </td>
+        </tr>
+        <tr>
+          <td>5. 跨市场排序</td>
+          <td class="mono" style="font-family:var(--mono);font-size:12.5px">档位 → 指标类型 → 可比性 → 数值</td>
+          <td>
+            不同指标的分位不可比。把「美国 CAPE 96」和「日本 PE 49」排在同一列里比大小，等于宣称美国贵一倍——
+            这个比较在数学上没有意义。所以先按档位，再按指标分组，组内才比数值。
+          </td>
         </tr>
       </tbody>
     </table>
+  </div>
+
+  <div class="notice">
+    <strong>每一格分位都必须带着窗口长度。</strong>
+    旧结构用 <span class="mono">y10 / y20</span> 命名，实际装的是美股近 45 年（96.3）、近 15 年（98.9）、
+    恒指近 16 年（60）、日本窗口未披露（49）——7 个市场里 4 个的 <span class="mono">y10</span> 不是 10 年。
+    字段名比数据本身更自信，下游代码只认字段名，于是「窗口不可比」这个最大的误差来源在整条判定链里完全不可见。
+    现在数据结构是 <span class="mono">windows: [{`{ years, value, source, approx }`}]</span>，窗口是数据的一部分，不再是字段名的一部分。
   </div>
 
   <div class="section-head">

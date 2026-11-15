@@ -71,6 +71,41 @@ export interface PercentileSet {
   y20?: number | null;
 }
 
+/**
+ * 一格分位数据。**窗口长度必须是数据的一部分，不能只写在字段名里。**
+ *
+ * 2026-11 审计：旧结构用 y10 / y20 命名，实际装的是
+ * 美股近 45 年（96.3）、近 15 年（98.9）、恒指近 16 年（60）、日本窗口未披露（49）、
+ * 印度 9.7（且与另一来源矛盾）。7 个市场里 4 个的 y10 不是 10 年。
+ * 字段名比数据本身更自信，下游代码只认字段名——于是「窗口不可比」这个最大的
+ * 误差来源，在整条判定链里完全不可见。
+ */
+export interface PctWindow {
+  /** 窗口长度（年） */
+  years: number;
+  /** true = 长度是推断值，来源没有明示 */
+  approx?: boolean;
+  /** 分位，0-100，越高越贵 */
+  value: number;
+  /** 来源原话里的窗口描述 */
+  label: string;
+  source: string;
+}
+
+export interface PctMetric {
+  windows: PctWindow[];
+}
+
+/** 数据硬伤。文本 caveat 机器读不懂，能影响判定的必须显式化 */
+export type IntegrityFlag =
+  | 'pb-missing'          // 只有 PB 分位、缺 PB 现值（无法用 ROE 复算背离）
+  | 'metric-mismatch'     // 主指标不是 PE 而是 CAPE，与别市场的分位不同刻度
+  | 'source-conflict'     // 同一指标有互相矛盾的来源，未裁决
+  | 'method-break'        // 窗口内统计口径变过，前后不可比
+  | 'window-undisclosed'  // 窗口长度未披露
+  | 'erp-source-conflict' // ERP 用不同无风险利率会得出相反结论
+  | 'stale';              // 估值数据超过陈旧阈值
+
 export interface Market {
   id: string;
   name: string;
@@ -80,6 +115,8 @@ export interface Market {
   currency: string;
   level: number | null;
   levelAsOf: string | null;
+  /** 估值数据自己的时点。origin 只有 levelAsOf，估值数据混用 6 个日期却无字段可查 */
+  valuationAsOf?: string | null;
   valuation: {
     peTtm: number | null;
     pb: number | null;
@@ -87,17 +124,21 @@ export interface Market {
     dividendYield: number | null;
     peForward?: number | null;
   };
-  /** 分位：0-100，越高越贵 */
+  /** 分位：0-100，越高越贵。每格都带自己的窗口长度 */
   percentiles: {
-    pe?: PercentileSet;
-    pb?: PercentileSet;
-    cape?: PercentileSet;
+    pe?: PctMetric;
+    pb?: PctMetric;
+    cape?: PctMetric;
     /** 无长期分位时的参照说明 */
     note?: string;
+    /** 数据硬伤，直接参与判定 */
+    integrityFlags?: IntegrityFlag[];
   };
   rates: {
     riskFree: number | null;
     riskFreeLabel: string;
+    /** 无风险利率自身的历史分位。缺它就无法判断 ERP 高是因为股票便宜还是利率低 */
+    riskFreePercentile?: number | null;
     erp: number | null;
     erpPercentile?: number | null;
     erpNote?: string;
@@ -239,25 +280,174 @@ export interface SectorsFile {
 export interface Picked {
   value: number;
   basis: string;
+  /** 指标类型：决定这个分位能不能和别的市场比大小 */
+  kind: 'pe' | 'pb' | 'cape';
+  /** 窗口长度（年）——结论必须带着它走 */
+  years: number;
+  approx: boolean;
+  source: string;
+  /** 来源原话里的窗口描述，如「2010 年以来（约 16 年）」 */
+  windowLabel: string;
 }
 
-/** 取"主分位"：PE 长期分位优先，其次 PB，再次 CAPE。返回 null 表示缺数据。 */
+/* ------------------------------------------------------------
+ * 主分位选择
+ * ------------------------------------------------------------
+ * 旧版顺序是 pe.y10 → pe.y5 → pe.y20 → pb.y10 → cape.y20 → cape.y10，
+ * 两个指标内部的窗口排序互相矛盾（pe 里 y20 排最后，cape 里 y20 排最前），
+ * 看不出是设计还是手滑。实际后果是美国用了 96.3（45 年）而不是 98.9（15 年）。
+ *
+ * 现在改成两条能讲清楚的规则：
+ *   指标优先：PE（当期盈利，最直接）→ CAPE（长期平滑，适合指数）→ PB（受回购扭曲最大）
+ *   窗口优先：同一指标里取最长窗口，因为短窗口的上界容易被上一轮泡沫抬高
+ * ------------------------------------------------------------ */
+
+export const KIND_LABEL: Record<'pe' | 'pb' | 'cape', string> = {
+  pe: 'PE',
+  pb: 'PB',
+  cape: 'CAPE',
+};
+
+/**
+ * 分位只在同一指标内部可比。
+ * PE 与 CAPE 的分位分布不同（CAPE 用十年通胀调整平均盈利，序列更平滑、尾部更薄），
+ * 把「美国 CAPE 96」和「日本 PE 49」放在一根尺上排大小，等于说美国贵一倍——
+ * 这个比较在数学上没有意义。所以排序必须按 kind 分组，不能跨组比大小。
+ */
+const KIND_RANK: Record<'pe' | 'pb' | 'cape', number> = { pe: 0, cape: 1, pb: 2 };
+
+function pickFromMetric(metric: PctMetric | undefined): PctWindow | null {
+  const ws = metric?.windows;
+  if (!ws?.length) return null;
+  return [...ws].sort((a, b) => b.years - a.years)[0] ?? null;
+}
+
+/** 取"主分位"。返回 null 表示缺数据。 */
 export function pickPrimaryPercentile(m: Market): Picked | null {
-  const p = m.percentiles;
-  const order: Array<[keyof Market['percentiles'], keyof PercentileSet, string]> = [
-    ['pe', 'y10', 'PE 10 年分位'],
-    ['pe', 'y5', 'PE 5 年分位'],
-    ['pe', 'y20', 'PE 20 年分位'],
-    ['pb', 'y10', 'PB 10 年分位'],
-    ['cape', 'y20', 'CAPE 20 年分位'],
-    ['cape', 'y10', 'CAPE 10 年分位'],
-  ];
-  for (const [metric, win, label] of order) {
-    const bucket = p[metric] as PercentileSet | undefined;
-    const v = bucket?.[win];
-    if (typeof v === 'number') return { value: v, basis: label };
+  const p = m.percentiles ?? {};
+  for (const kind of ['pe', 'cape', 'pb'] as const) {
+    const w = pickFromMetric(p[kind]);
+    if (!w) continue;
+    return {
+      value: w.value,
+      kind,
+      years: w.years,
+      approx: !!w.approx,
+      source: w.source,
+      windowLabel: w.label,
+      basis: `${KIND_LABEL[kind]} 分位 ${w.value.toFixed(0)}（窗口 ${w.label}）`,
+    };
   }
   return null;
+}
+
+/* ------------------------------------------------------------
+ * 分位可信度：把「数据能不能支撑结论」变成独立维度
+ * ------------------------------------------------------------
+ * 旧版把 confidence 写进数据、显示在页面上，却不进任何 if 分支。
+ * 结果印度（confidence: low）凭 9.7 分位拿到全站唯一的「极具性价比」，
+ * 而它自己的 caveat 写着「来源冲突未裁决」「NSE 2021 改制使前后不可比」。
+ * 这是全项目最讽刺的一处：一个专门表达「别太当真」的字段，
+ * 唯一作用是让页面看起来更诚实。
+ * ------------------------------------------------------------ */
+
+export type Integrity = 'clean' | 'suspect' | 'broken';
+
+export interface IntegrityReport {
+  level: Integrity;
+  /** 影响档位可信度的硬伤 */
+  issues: string[];
+  /** 只影响跨市场可比性的硬伤——读数本身可靠，但不能拿去比大小 */
+  notices: string[];
+  /** false = 不能与其它市场比大小（指标不同刻度，或关键现值缺失） */
+  comparable: boolean;
+  /** 被降级后封顶的档位说明 */
+  cap?: string;
+}
+
+/** PE 分位与 PB 分位差多少点就必须提示。30 点是「两个指标开始说不同的话」的量级 */
+export const METRIC_DIVERGENCE_GAP = 30;
+
+/** 短于这个年数的分位不足以当作「长期分位」 */
+export const MIN_WINDOW_YEARS = 10;
+
+const FLAG_TEXT: Record<IntegrityFlag, string> = {
+  'pb-missing': '缺 PB 现值，PE 与 PB 分位的背离无法用 ROE 复算',
+  'metric-mismatch': '主指标是 CAPE 而非 PE，它的分位与别市场的 PE 分位不是同一把尺子',
+  'source-conflict': '同一指标存在互相矛盾的来源读数，没有第三方裁决',
+  'method-break': '统计口径在窗口内变过，前后不可直接比较',
+  'window-undisclosed': '分位窗口长度未披露',
+  'erp-source-conflict': 'ERP 换用另一套无风险利率会得出相反结论',
+  stale: '估值数据已超出陈旧阈值',
+};
+
+/**
+ * 三类硬伤，三种处理，不能混。
+ *
+ * 档位破坏型（source-conflict / method-break）：这格读数本身站不住，不能拿它下结论。
+ * 可比性破坏型（metric-mismatch / pb-missing / erp-source-conflict）：
+ *   读数可能很可靠，只是**不能拿去和别的市场比大小**。
+ *   把美国 CAPE 96 分位因为「不可比」降成「偏贵」，是拿一个精度问题去削一个真实结论——
+ *   它 150 年里只有 18 个月更贵，这个事实不该被「口径不同」抹平。
+ * 存疑型（window-undisclosed）：窗口不知道多长，档位可信度打折但不能直接作废。
+ */
+const TIER_BREAKING: IntegrityFlag[] = ['source-conflict', 'method-break'];
+const COMPARABILITY_BREAKING: IntegrityFlag[] = ['metric-mismatch', 'pb-missing', 'erp-source-conflict'];
+
+export function percentileIntegrity(m: Market, pick?: Picked | null): IntegrityReport {
+  const p = pick === undefined ? pickPrimaryPercentile(m) : pick;
+
+  /* 没有分位就没有「分位可信度」这回事。档位已经是「数据不足」，
+     再叠一句「证据不足」只是把同一个事实说两遍。 */
+  if (!p) {
+    return { level: 'clean', issues: [], notices: [], comparable: true };
+  }
+
+  const flags = m.percentiles?.integrityFlags ?? [];
+  const issues: string[] = [];
+  const notices: string[] = [];
+
+  for (const f of flags) {
+    if (f === 'stale') continue;
+    if (COMPARABILITY_BREAKING.includes(f)) notices.push(FLAG_TEXT[f]);
+    else issues.push(FLAG_TEXT[f]);
+  }
+
+  if (m.confidence === 'low') issues.push('置信度为低：来源之间尚未裁决，任何分位都不足以支撑方向');
+
+  if (p.approx) issues.push(`窗口长度是推断值（${p.years} 年），不是来源明示`);
+  if (p.years < MIN_WINDOW_YEARS) issues.push(`主分位窗口仅 ${p.years} 年，短窗口的上界容易被上一轮泡沫抬高`);
+
+  // 背离检测：PE 与 PB 各自取最长窗口后比较
+  const pe = pickFromMetric(m.percentiles?.pe);
+  const pb = pickFromMetric(m.percentiles?.pb);
+  if (pe && pb) {
+    const gap = Math.abs(pe.value - pb.value);
+    if (gap >= METRIC_DIVERGENCE_GAP) {
+      issues.push(
+        `PE 分位 ${pe.value.toFixed(0)} 与 PB 分位 ${pb.value.toFixed(0)} 差 ${gap.toFixed(
+          0
+        )} 个百分点：盈利端与净资产端给出相反的贵贱答案`
+      );
+    }
+  }
+
+  const broken = m.confidence === 'low' || flags.some((f) => TIER_BREAKING.includes(f));
+  const level: Integrity = broken ? 'broken' : issues.length > 0 ? 'suspect' : 'clean';
+  const comparable = !flags.some((f) => COMPARABILITY_BREAKING.includes(f));
+
+  return {
+    level,
+    issues,
+    notices,
+    comparable,
+    cap:
+      level === 'broken'
+        ? '证据链有硬缺口，不给方向'
+        : level === 'suspect'
+          ? '最高只到「偏便宜 / 偏贵」，不给「极具性价比 / 很贵」'
+          : undefined,
+  };
 }
 
 const TIER_OF = (p: number): Tier => {
@@ -295,39 +485,121 @@ export interface Verdict {
   /** 判定链，逐条给用户看 */
   reasons: string[];
   order: number;
+  /** 数据可信度，与档位正交：档位说「贵不贵」，可信度说「这句话能信几分」 */
+  integrity: Integrity;
+  integrityIssues: string[];
+  /** 只说「不能比」的那类硬伤 */
+  integrityNotices: string[];
+  /** false = 不能与其它市场排在同一根尺上比大小 */
+  comparable: boolean;
+  /** 用于判定的那一格分位（含窗口长度），缺数据显示 null */
+  basis: Picked | null;
+  /** 档位是否被可信度封顶过 */
+  capped: string | null;
 }
 
 /**
- * 判定规则（故意保持简单可解释）：
- * 1) 以主分位落档
- * 2) ERP 分位作为修正项：>=70 分位（股票相对债券便宜）上调一档；<=30 下调一档
- * 3) 低置信度不改变档位，只在前端提示，避免"数据差还给强结论"
+ * ERP 修正项的前置门槛。
+ *
+ * 2026-11 审计：ERP = 1/PE − 无风险利率。当无风险利率下行，ERP 会**自动**上升，
+ * 与股票是否变便宜完全无关。而规则把「ERP ≥70 分位」读作股票便宜并上调一档——
+ * 等于把债券端的变化记成了股票端的便宜。
+ *
+ * A 股就是实例：PE 69.2 分位（偏贵）经 ERP 71.6 分位修正后显示「合理」，
+ * 但这个 ERP 的分母里 10Y 国债只有 1.62%。港股更直接，它自己的注释写着
+ * 「若改用 10Y 美债，ERP 仅 4.15%（7 分位）——用哪个无风险利率，结论完全相反」，
+ * 而规则正拿那个被自评为「完全相反」的读数单方面改档。
+ *
+ * 所以：只有拿到无风险利率自身的历史分位、且确认利率不在低位时，才允许 ERP 改档。
+ * 拿不到就只提示、不改档——与「缺数据不给方向」是同一条原则。
  */
-export function judge(m: Market): Verdict {
-  const primary = pickPrimaryPercentile(m);
-  const reasons: string[] = [];
+export const RISK_FREE_LOW_PCT = 45;
 
-  if (!primary) {
+export function erpAdjustGate(m: Market): { allowed: boolean; why: string } {
+  const rfp = m.rates?.riskFreePercentile;
+  const rf = m.rates?.riskFree;
+  if (typeof rfp !== 'number') {
+    return {
+      allowed: false,
+      why: `无风险利率自身没有历史分位（当前 ${rf ?? '—'}%），无法区分 ERP 高是「股票便宜」还是「利率低」，因此不改档`,
+    };
+  }
+  if (rfp <= RISK_FREE_LOW_PCT) {
+    return {
+      allowed: false,
+      why: `无风险利率处于 ${rfp.toFixed(0)} 分位（偏低），ERP 里有相当一部分是利率下行给的，不是股票变便宜，不改档`,
+    };
+  }
+  return { allowed: true, why: `无风险利率处于 ${rfp.toFixed(0)} 分位（不在低位），ERP 修正可用` };
+}
+
+/** suspect 封顶：拿掉两个极端档，只留「偏便宜 / 合理 / 偏贵」 */
+const CAP_SUSPECT: Partial<Record<Tier, Tier>> = {
+  'very-cheap': 'cheap',
+  'very-rich': 'rich',
+};
+
+export function judge(m: Market): Verdict {
+  const pick = pickPrimaryPercentile(m);
+  const integ = percentileIntegrity(m, pick);
+
+  if (!pick) {
     return {
       tier: 'unknown',
       label: TIER_LABEL.unknown,
       className: TIER_CLASS.unknown,
       reasons: ['缺少可用的长期估值分位，不做档位判断'],
       order: TIER_ORDER.indexOf('unknown'),
+      integrity: integ.level,
+      integrityIssues: integ.issues,
+      integrityNotices: integ.notices,
+      comparable: integ.comparable,
+      basis: null,
+      capped: null,
     };
   }
 
-  let idx = TIER_ORDER.indexOf(TIER_OF(primary.value));
-  reasons.push(`${primary.basis} ${primary.value.toFixed(0)} → 落在「${TIER_LABEL[TIER_ORDER[idx]]}」`);
+  const reasons: string[] = [];
+  let idx = TIER_ORDER.indexOf(TIER_OF(pick.value));
 
+  /* 证据链有硬缺口 → 直接不给方向，而不是给个弱方向。
+     「说不清」和「偏便宜」是两个不同的答案，不能互相替代。
+     注意措辞：不能先说「落在极具性价比」再说「不给方向」——那样等于把错误结论
+     写进判定链，用户扫一眼只看到前半句。 */
+  if (integ.level === 'broken') {
+    reasons.push(
+      `${pick.basis}，按数字会落在「${TIER_LABEL[TIER_ORDER[idx]]}」`
+    );
+    reasons.push(`但证据链有硬缺口（${integ.issues[0] ?? '数据不可信'}），这个档位不成立，不给方向`);
+    return {
+      tier: 'unknown',
+      label: '说不清',
+      className: TIER_CLASS.unknown,
+      reasons,
+      order: TIER_ORDER.indexOf('unknown'),
+      integrity: integ.level,
+      integrityIssues: integ.issues,
+      integrityNotices: integ.notices,
+      comparable: integ.comparable,
+      basis: pick,
+      capped: '证据链有硬缺口，不给方向',
+    };
+  }
+
+  reasons.push(`${pick.basis} → 落在「${TIER_LABEL[TIER_ORDER[idx]]}」`);
+
+  /* --- ERP 修正：带前置门槛 --- */
   const erpPct = m.rates.erpPercentile;
   if (typeof erpPct === 'number') {
-    if (erpPct >= 70 && idx > 0) {
+    const gate = erpAdjustGate(m);
+    if (!gate.allowed) {
+      reasons.push(`ERP ${erpPct.toFixed(0)} 分位，但${gate.why}`);
+    } else if (erpPct >= 70 && idx > 0) {
       idx -= 1;
-      reasons.push(`ERP 处于 ${erpPct.toFixed(0)} 分位（股票相对债券便宜），上调一档`);
+      reasons.push(`ERP 处于 ${erpPct.toFixed(0)} 分位（股票相对债券便宜）且${gate.why}，上调一档`);
     } else if (erpPct <= 30 && idx < TIER_ORDER.indexOf('very-rich')) {
       idx += 1;
-      reasons.push(`ERP 处于 ${erpPct.toFixed(0)} 分位（股票相对债券贵），下调一档`);
+      reasons.push(`ERP 处于 ${erpPct.toFixed(0)} 分位（股票相对债券贵）且${gate.why}，下调一档`);
     } else {
       reasons.push(`ERP ${erpPct.toFixed(0)} 分位，中性区间，不修正`);
     }
@@ -339,6 +611,17 @@ export function judge(m: Market): Verdict {
     );
   }
 
+  /* --- 可信度封顶 --- */
+  let capped: string | null = null;
+  if (integ.level === 'suspect') {
+    const after = CAP_SUSPECT[TIER_ORDER[idx]];
+    if (after) {
+      capped = `原判「${TIER_LABEL[TIER_ORDER[idx]]}」，因${integ.issues[0] ?? '数据存疑'}封顶为「${TIER_LABEL[after]}」`;
+      idx = TIER_ORDER.indexOf(after);
+      reasons.push(capped);
+    }
+  }
+
   const tier = TIER_ORDER[idx];
   return {
     tier,
@@ -346,8 +629,38 @@ export function judge(m: Market): Verdict {
     className: TIER_CLASS[tier],
     reasons,
     order: idx,
+    integrity: integ.level,
+    integrityIssues: integ.issues,
+    integrityNotices: integ.notices,
+    comparable: integ.comparable,
+    basis: pick,
+    capped,
   };
 }
+
+/**
+ * 跨市场排序键。
+ * 关键点：不同指标的分位不可比，所以先按档位、再按**指标类型分组**，组内才比大小。
+ * 不能直接拿 96（CAPE）和 49（PE）比出「美国贵一倍」——那个比较在数学上没有意义。
+ * 不可比的市场（comparable=false）排在同档位内、同 kind 组的后面，但仍留在自己的组里。
+ */
+export function marketSortKey(v: Verdict): [number, number, number, number] {
+  return [
+    v.order,
+    v.basis ? KIND_RANK[v.basis.kind] : 9,
+    v.comparable ? 0 : 1,
+    v.basis ? v.basis.value : 999,
+  ];
+}
+
+/** 估值快照超过这么多天就标 stale。市场的估值数据比 ETF 变化慢，但也不能无限期挂着 */
+export const MARKET_DATA_STALE_DAYS = 60;
+
+export const INTEGRITY_LABEL: Record<Integrity, string> = {
+  clean: '口径干净',
+  suspect: '口径存疑',
+  broken: '证据不足',
+};
 
 export const CONFIDENCE_LABEL: Record<Confidence, string> = {
   high: '数据可靠',
@@ -913,6 +1226,81 @@ export function peSourceConflict(idx: EtfIndex | undefined): PeSourceConflict | 
 }
 
 /* ============================================================
+ * 指标背离：PE 分位与 PB 分位说不同的话
+ * ------------------------------------------------------------
+ * 2026-11 审计用户指出的问题：「ETF 说纳斯达克 100 便宜，全球市场说美股贵」。
+ *
+ * 两个数都对：
+ *   - 纳指 PE 27.08、10 年分位 28 → 相对过去十年，现在比大多数时候便宜
+ *   - 美股 CAPE 40.71、45 年分位 96.3 → 相对过去 45 年，现在几乎是最贵
+ * 但纳指自己的 pbPct 是 88.4 分位（很贵），而 entryAssessment 只读了 PE，
+ * PB 那个 88.4 一个字没看——于是给出了「偏便宜」，和自己的 caveat 直接冲突。
+ * 它的 caveat 原文：「PE 分位 28% 与 PB 分位 88% 的背离无法用 ROE 复算……
+ * 在补齐 PB 之前不作结论」。
+ *
+ * 背离本身不是错误，它有明确含义：PB = PE × ROE。
+ *   ROE 上升 → 分母（净资产）相对利润变小 → PB 升、PE 降。
+ *   所以「PE 便宜 + PB 贵」= 高 ROE / 高回购，不等于便宜，也不等于贵。
+ *
+ * 判定分三种：
+ *   ROE 能复算且吻合 → 背离由 ROE 解释，不加 block，但必须写明（否则用户以为 PE 分位就是全部）
+ *   ROE 能复算但不吻合 → 真背离，不加方向
+ *   缺 PB 现值或缺 ROE → 无法归因，不加方向（纳指属于这种）
+ * ============================================================ */
+
+/** ETF 侧的背离阈值。40 点是两把尺子量出相反答案的量级（市场侧用 30，因为那边只有两格可见） */
+export const ETF_DIVERGENCE_GAP = 40;
+
+/** ROE 复算的容差：|PE×ROE − PB| / PB 超过 10% 就算复算不上 */
+export const ROE_RECON_TOL = 0.1;
+
+export interface MetricDivergence {
+  pePct: number;
+  pbPct: number;
+  gap: number;
+  /** true = ROE 能解释这个背离；false = 解释了但不算；null = 缺 PB 现值或 ROE，无法归因 */
+  explainedByRoe: boolean | null;
+  /** 复算出来的隐含 PB，用于展示 */
+  impliedPb: number | null;
+  reason: string;
+}
+
+export function metricDivergence(idx: EtfIndex | undefined): MetricDivergence | null {
+  if (!idx) return null;
+  const pePct = idx.pePct?.y10;
+  const pbPct = idx.pbPct?.y10;
+  if (typeof pePct !== 'number' || typeof pbPct !== 'number') return null;
+  const gap = Math.abs(pbPct - pePct);
+  if (gap < ETF_DIVERGENCE_GAP) return null;
+
+  let explainedByRoe: boolean | null = null;
+  let impliedPb: number | null = null;
+
+  if (typeof idx.pb === 'number' && typeof idx.roe === 'number' && typeof idx.pe === 'number' && idx.pe > 0) {
+    impliedPb = (idx.pe * idx.roe) / 100;
+    explainedByRoe = Math.abs(impliedPb - idx.pb) / idx.pb <= ROE_RECON_TOL;
+  }
+
+  const base = `PB 分位 ${pbPct.toFixed(0)} 与 PE 分位 ${pePct.toFixed(0)} 差 ${gap.toFixed(0)} 点`;
+  let reason: string;
+  if (explainedByRoe === true) {
+    reason = `${base}：这是 ROE ${idx.roe}% 造成的（PE×ROE = ${impliedPb!.toFixed(
+      2
+    )} ≈ PB ${idx.pb}），同一件事的两个侧面，不是矛盾`;
+  } else if (explainedByRoe === false) {
+    reason = `${base}，而 ROE ${idx.roe}% 复算出的 PB 应为 ${impliedPb!.toFixed(
+      2
+    )}、实际 ${idx.pb}，对不上——盈利端与净资产端给出相反的贵贱答案`;
+  } else {
+    reason = `${base}，但缺${typeof idx.pb !== 'number' ? ' PB 现值' : ''}${
+      typeof idx.roe !== 'number' ? `${typeof idx.pb !== 'number' ? '、' : ''}ROE` : ''
+    }，无法确认这个背离是 ROE 抬升造成的还是估值本身在打架`;
+  }
+
+  return { pePct, pbPct, gap, explainedByRoe, impliedPb, reason };
+}
+
+/* ============================================================
  * 两维模型：工具分 / 入场分
  * ------------------------------------------------------------
  * 2026-11 审计发现旧的三层模型有一个结构性缺陷：它把三件不同的事
@@ -1100,8 +1488,10 @@ export interface EntryAssessment {
   kind: 'pe' | 'pb' | 'none';
   percentile: PctPick | null;
   reliability: PctReliability | null;
-  /** 说不清的具体理由，按「换尺 / 窗口分歧 / 口径分歧 / 样本不足」分类 */
+  /** 说不清的具体理由，按「换尺 / 窗口分歧 / 口径分歧 / 样本不足 / 指标背离」分类 */
   blocks: string[];
+  /** 不构成 block、但必须让用户知道的口径说明 */
+  notes: string[];
   headline: string;
 }
 
@@ -1109,18 +1499,22 @@ export interface EntryAssessment {
  * 入场分只回答一件事：这个指数现在贵不贵。
  * 关键原则是**证据链有一环不可靠就不给方向**——不可靠的分位既不能支撑「便宜」，也不能支撑「贵」。
  * 所以它只有四档，没有「大概便宜」这种中间态。
+ *
+ * 2026-11 补充：加了 PB 背离检查。纳指 PE 分位 28（便宜）+ PB 分位 88.4（贵）
+ * 却只按 PE 判「偏便宜」，和它自己的 caveat 直接冲突。
  */
 export function entryAssessment(idx: EtfIndex | undefined): EntryAssessment {
   if (!idx) {
-    return { grade: 'unclear', kind: 'none', percentile: null, reliability: null, blocks: ['缺底层指数'], headline: '无底层指数' };
+    return { grade: 'unclear', kind: 'none', percentile: null, reliability: null, blocks: ['缺底层指数'], notes: [], headline: '无底层指数' };
   }
   const v = indexValuation(idx);
   if (!v) {
     const why = typeof idx.pe === 'number' && idx.pe <= 0 ? '指数整体亏损且无 PB 分位可用' : '缺估值分位';
-    return { grade: 'unclear', kind: 'none', percentile: null, reliability: null, blocks: [why], headline: why };
+    return { grade: 'unclear', kind: 'none', percentile: null, reliability: null, blocks: [why], notes: [], headline: why };
   }
   const rel = percentileReliability(idx, v.window, idx.asOf);
   const blocks: string[] = [];
+  const notes: string[] = [];
 
   if (v.kind === 'pb') blocks.push('PE 不可用，已换用 PB，而 PB 的便宜无法验证');
   const conflict = percentileWindowConflict(idx);
@@ -1129,18 +1523,26 @@ export function entryAssessment(idx: EtfIndex | undefined): EntryAssessment {
   if (psc) blocks.push(`两个 PE 口径差 ${(psc.gap * 100).toFixed(0)}% 且结论相反`);
   if (rel?.level === 'low') blocks.push('分位样本不可比');
 
+  /* PB 背离：能归因于 ROE 就只在 note 里说清，不能归因就不给方向。
+     区别在于「这件事解释得通」和「这件事还没法下结论」——前者是信息，后者是风险。 */
+  const div = metricDivergence(idx);
+  if (div) {
+    if (div.explainedByRoe === true) notes.push(div.reason);
+    else blocks.push(div.reason);
+  }
+
   let grade: EntryGrade;
   if (blocks.length > 0) grade = 'unclear';
   else if (v.value <= 35) grade = 'cheap';
   else if (v.value <= 65) grade = 'fair';
   else grade = 'expensive';
 
-  const basis = v.basis;
-  const headline = blocks.length
-    ? `${basis} ${v.value.toFixed(0)}，但${blocks[0]}——不给方向`
-    : `${basis} ${v.value.toFixed(0)}，${grade === 'cheap' ? '偏便宜' : grade === 'fair' ? '中性' : '偏贵'}`;
+  const basis = `${v.basis} ${v.value.toFixed(0)}`;
+  /* unclear 时不要把「分位 X，但 PB 分位与 PE 分位差 Y 点」拼两遍——
+     用户扫标题只看前半句，重复的数值会让真正的理由被挤到视线外。 */
+  const headline = blocks.length ? `${blocks[0]}——不给方向` : `${basis}，${grade === 'cheap' ? '偏便宜' : grade === 'fair' ? '中性' : '偏贵'}`;
 
-  return { grade, kind: v.kind, percentile: v, reliability: rel, blocks, headline };
+  return { grade, kind: v.kind, percentile: v, reliability: rel, blocks, notes, headline };
 }
 
 export function costStateOf(e: Etf): CostState {

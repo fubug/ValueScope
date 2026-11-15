@@ -2,7 +2,14 @@
 import Base from '../layouts/Base.astro';
 import PercentileBar from '../components/PercentileBar.astro';
 import marketsData from '../../data/markets.json';
-import { judge, pickPrimaryPercentile, CONFIDENCE_LABEL, type MarketsFile } from '../lib/rules';
+import {
+  judge,
+  pickPrimaryPercentile,
+  marketSortKey,
+  CONFIDENCE_LABEL,
+  INTEGRITY_LABEL,
+  type MarketsFile,
+} from '../lib/rules';
 
 const data = marketsData as unknown as MarketsFile;
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -13,10 +20,18 @@ const rows = data.markets
     const p = pickPrimaryPercentile(m);
     return { m, v, p };
   })
-  .sort((a, b) => a.v.order - b.v.order || (a.p?.value ?? 999) - (b.p?.value ?? 999));
+  /* 排序按 [档位, 指标类型, 可比性, 数值]——不能直接拿 CAPE 96 和 PE 49 比大小，
+     那等于宣称「美国比日本贵一倍」，而两个指标的分位分布根本不同。 */
+  .sort((a, b) => {
+    const x = marketSortKey(a.v);
+    const y = marketSortKey(b.v);
+    for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] - y[i];
+    return 0;
+  });
 
 const unknown = rows.filter((r) => r.v.tier === 'unknown').length;
 const missingLongRun = data.markets.filter((m) => m.longRun.cagr10y == null).length;
+const notComparable = rows.filter((r) => !r.v.comparable).length;
 
 const fmt = (v: number | null | undefined, digits = 1) =>
   v == null ? '—' : v.toFixed(digits);
@@ -27,6 +42,15 @@ const fmt = (v: number | null | undefined, digits = 1) =>
   <div class="notice">
     <strong>数据快照 {data.meta.snapshot}</strong>，全部为手工核对的公开数据，非实时行情。{unknown > 0 && `其中 ${unknown} 个市场缺少可用估值数据，未做档位判断。`}
     分位数字越高越贵，判定规则见<a href={`${base}/method/`} style="color:inherit;text-decoration:underline">方法论</a>。
+  </div>
+
+  <div class="notice">
+    <strong>为什么「美股很贵」和「纳斯达克 100 偏便宜」可以同时出现。</strong>
+    这不是矛盾，是两个窗口在说不同的话：ETF 面板里的纳指用的是 <span class="mono">PE 27.08 / 近 10 年分位 28</span>——
+    相对过去十年，现在确实比大多数时候便宜；而这里的美股用的是 <span class="mono">CAPE 40.71 / 近 45 年分位 96.3</span>——
+    相对过去四十五年，现在几乎是最贵。
+    两个数字都对，差别在「拿哪一段历史当锚」。所以本面板的每一格分位都标注了自己的窗口长度，
+    跨指标、跨窗口的「谁更贵」不再排名——<strong>分位不说窗口，等于没说。</strong>
   </div>
 
   <div class="grid grid-3" style="margin-top:24px">
@@ -78,7 +102,7 @@ const fmt = (v: number | null | undefined, digits = 1) =>
 
   <div class="section-head">
     <h2>横向对比</h2>
-    <span class="hint">按「性价比」从便宜到贵排序</span>
+    <span class="hint">先按档位、再按指标口径分组——不同指标的分位不在同一把尺上</span>
   </div>
 
   <div class="card" style="padding:18px 20px 6px;overflow-x:auto">
@@ -89,7 +113,7 @@ const fmt = (v: number | null | undefined, digits = 1) =>
           <th class="num">PE</th>
           <th class="num">PB</th>
           <th class="num">股息率</th>
-          <th style="min-width:180px">估值分位</th>
+          <th style="min-width:190px">估值分位（窗口）</th>
           <th class="num">ERP</th>
           <th>判定</th>
         </tr>
@@ -108,16 +132,23 @@ const fmt = (v: number | null | undefined, digits = 1) =>
             <td class="num">{m.valuation.dividendYield == null ? '—' : `${fmt(m.valuation.dividendYield, 2)}%`}</td>
             <td>
               <PercentileBar value={p?.value ?? null} label={p?.basis} />
-              {p && <div class="small dim mono" style="margin-top:-2px">{p.basis}</div>}
-              {!p && <div class="small dim">{m.percentiles.note ? '见详情页' : '缺数据'}</div>}
+              {p && (
+                <div class="small dim mono" style="margin-top:-2px">
+                  {p.kind.toUpperCase()} · {p.windowLabel}{p.approx ? '（推断）' : ''}
+                </div>
+              )}
+              {!p && <div class="small dim">{m.percentiles?.note ? '见详情页' : '缺数据'}</div>}
             </td>
             <td class="num" style={m.rates.erp != null && m.rates.erp < 0 ? 'color:var(--expensive)' : ''}>
               {m.rates.erp == null ? '—' : `${fmt(m.rates.erp, 2)}%`}
             </td>
             <td>
               <span class={`badge ${v.className}`}>{v.label}</span>
+              {v.integrity !== 'clean' && (
+                <div class="small dim" style="margin-top:4px;color:var(--fair)">{INTEGRITY_LABEL[v.integrity]}</div>
+              )}
               {m.confidence !== 'high' && (
-                <div class="small dim" style="margin-top:4px">{CONFIDENCE_LABEL[m.confidence]}</div>
+                <div class="small dim" style="margin-top:2px">{CONFIDENCE_LABEL[m.confidence]}</div>
               )}
               {m.analystView && (
                 <div class="small dim" style="margin-top:2px">观点：{m.analystView.stance}</div>
@@ -128,6 +159,14 @@ const fmt = (v: number | null | undefined, digits = 1) =>
       </tbody>
     </table>
   </div>
+
+  {notComparable > 0 && (
+    <p class="small dim" style="margin-top:10px">
+      其中 {notComparable} 个市场的主分位不是 PE，或缺 PB 现值——它们的<strong>档位可信</strong>，但不能和别的市场直接比大小。
+      比如美国用的是 CAPE（十年通胀调整盈利），它的 96 分位和日本的 PE 49 分位不是同一把尺子；
+      把两者排在同一列里看「谁更贵」，是拿两个刻度不同的表去量同一个长度。
+    </p>
+  )}
 
   <div class="notice info" style="margin-top:20px">
     <strong>两个已知缺口</strong>，不填数字也不假装有：
