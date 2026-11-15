@@ -6,6 +6,7 @@ import {
   deriveEtfStatus,
   etfPending,
   indexPercentile,
+  indexValuation,
   percentileReliability,
   peerFee,
   premiumInFeeYears,
@@ -37,7 +38,7 @@ const STATE_CLASS = { pass: 'cheap', partial: 'fair', fail: 'expensive' } as con
 
 /**
  * 卡点分布：把「需观察」拆开。
- * 13 只都是需观察，但「指数贵」「工具贵」「数据没取到」是三件完全不同的事，
+ * 多数是需观察，但「指数贵」「工具贵」「数据没取到」是三件完全不同的事，
  * 混成一个数字会让人以为「全部不能买」，那正是这个面板要避免的误读。
  */
 const blockers = data.etfs.map((e) => {
@@ -79,7 +80,10 @@ const pctColor = (p: number) =>
 // PE 分位与 PB 分位的背离 = ROE 变化的痕迹。
 // PB / PE = ROE，所以「PB 分位低但 PE 分位高」只有一种解释：净资产还在，赚钱能力退了。
 // 这条规则是自动的，不针对某一只指数——任何新加进来的指数都会被同一把尺子量一遍。
+// 注意：PE ≤ 0 的指数不进这张表。负 PE 的分位是「亏得多深」的名次，与 PB 分位的差
+// 不是 ROE 下行的痕迹，而是亏损本身的痕迹——放进来会产生一条看起来极端的假背离。
 const divergences = data.indices
+  .filter((i) => typeof i.pe === 'number' && i.pe > 0)
   .filter((i) => typeof i.pePct.y10 === 'number' && typeof i.pbPct.y10 === 'number')
   .map((i) => ({
     name: i.name,
@@ -130,45 +134,70 @@ const divergences = data.indices
       </thead>
       <tbody>
         {data.indices.map((i) => {
-          const p = indexPercentile(i);
+          /* 注意：这类判断必须写成 JS 常量，不要塞进 JSX 里的 IIFE，
+             也不要在模板表达式里写 `<=`——Astro 编译器会把它当成标签起始，
+             报「Unable to assign attributes when using <> Fragment shorthand syntax」。
+             这是 2026-11 加光伏时踩到的坑，记在这里避免下次再犯。 */
+          const peNegative = typeof i.pe === 'number' && !(i.pe > 0);
+          const val = indexValuation(i);
+          const rel = val ? percentileReliability(i, val.window, i.asOf) : null;
+          const relColor =
+            rel?.level === 'low' ? 'var(--expensive)' : rel?.level === 'medium' ? 'var(--fair)' : 'var(--cheap)';
+          const relLabel = rel?.level === 'low' ? '低' : rel?.level === 'medium' ? '中' : '高';
           return (
             <tr>
               <td>
                 <strong>{i.name}</strong>
                 <div class="small dim mono">{i.code} · {i.currency}</div>
               </td>
-              <td class="num mono">{i.pe ?? '—'}</td>
+              <td class="num mono">
+                <span
+                  style={peNegative ? 'color:var(--expensive);font-weight:600' : ''}
+                  title={peNegative ? '整体法 PE 为负：成分股合计净利润为负，这个数字本身不参与估值判断' : undefined}
+                >
+                  {i.pe ?? '—'}
+                  {peNegative && <span style="font-size:10px;margin-left:3px">亏损</span>}
+                </span>
+              </td>
               <td class="num mono small">
-                {(['y3', 'y5', 'y10'] as const).map((w, k) => {
-                  const v = i.pePct[w];
-                  return (
+                <span
+                  style={peNegative ? 'text-decoration:line-through;opacity:.45' : ''}
+                  title={peNegative ? 'PE 为负，百分位失去方向含义：行业越亏，PE 越负，分位可能越「便宜」。本表不以它判断估值。' : undefined}
+                >
+                  {(['y3', 'y5', 'y10'] as const).map((w, k) => (
                     <>
                       {k > 0 && <span class="dim"> / </span>}
-                      <span style={typeof v === 'number' ? `color:${pctColor(v)}` : 'color:var(--dim)'}>
-                        {typeof v === 'number' ? v.toFixed(0) : '—'}
+                      <span
+                        style={
+                          typeof i.pePct[w] === 'number'
+                            ? `color:${pctColor(i.pePct[w] as number)}`
+                            : 'color:var(--dim)'
+                        }
+                      >
+                        {typeof i.pePct[w] === 'number' ? (i.pePct[w] as number).toFixed(0) : '—'}
                       </span>
                     </>
-                  );
-                })}
+                  ))}
+                </span>
               </td>
               <td class="num mono">{i.pb ?? '—'}</td>
-              <td class="num mono" style={typeof i.pbPct.y10 === 'number' ? `color:${pctColor(i.pbPct.y10)}` : ''}>
+              <td
+                class="num mono"
+                style={typeof i.pbPct.y10 === 'number' ? `color:${pctColor(i.pbPct.y10)}` : ''}
+                title={peNegative ? 'PB 分位低在这里不代表便宜：ROE 为负，净资产正在被亏损吃掉' : undefined}
+              >
                 {typeof i.pbPct.y10 === 'number' ? `${i.pbPct.y10.toFixed(0)}` : '—'}
+                {peNegative && <span class="dim" style="font-size:10px"> *</span>}
               </td>
               <td class="num mono">{i.dividendYield == null ? '—' : `${i.dividendYield}%`}</td>
               <td class="small">
-                {(() => {
-                  const rel = p ? percentileReliability(i, p.window, i.asOf) : null;
-                  if (!rel) return <span class="dim">—</span>;
-                  const color =
-                    rel.level === 'low' ? 'var(--expensive)' : rel.level === 'medium' ? 'var(--fair)' : 'var(--cheap)';
-                  const label = rel.level === 'low' ? '低' : rel.level === 'medium' ? '中' : '高';
-                  return (
-                    <span style={`color:${color}`} title={rel.reason}>
-                      {label}
-                    </span>
-                  );
-                })()}
+                {rel ? (
+                  <span style={`color:${relColor}`} title={rel.reason}>
+                    {relLabel}
+                  </span>
+                ) : (
+                  <span class="dim">—</span>
+                )}
               </td>
               <td class="num small dim mono">{i.asOf}</td>
             </tr>
@@ -185,6 +214,22 @@ const divergences = data.indices
         鼠标悬停可以看到具体原因。
       </span>
     </div>
+    {data.indices
+      .filter((i) => typeof i.pe === 'number' && !(i.pe > 0))
+      .map((i) => (
+        <div class="notice" style="border-color:rgba(255,91,91,.4);margin-top:14px">
+          <strong>{i.name}（{i.code}）的 PE 是 {i.pe}，不是「很低的市盈率」，是负数。</strong>
+          <div class="small" style="margin-top:6px;line-height:1.8">
+            整体法口径下成分股合计净利润为负，PE 没有经济含义。表里那三个 PE 分位
+            （{i.pePct.y3} / {i.pePct.y5} / {i.pePct.y10}）是<strong>把负数排序</strong>排出来的——行业越亏，PE 越负，名次可能越「便宜」，
+            所以它们被划掉了：读得出数字，读不出结论。
+            估值层改用 PB {i.pb} 倍（10 年分位 {i.pbPct.y10}%），但 ROE {i.roe}% 说明
+            <strong>净资产本身在被亏损吃掉</strong>，PB 的分母还在变小——这是价值陷阱的形态，不是安全边际。
+            规则据此硬编码：<span class="mono">PE ≤ 0 → PE 分位失效，改用 PB，且估值层最高只判「部分通过」</span>。
+          </div>
+        </div>
+      ))}
+
     <div class="small dim" style="margin:14px 0 0;line-height:1.75">
       {data.indices
         .filter((i) => i.peCaveat)
@@ -235,6 +280,14 @@ const divergences = data.indices
     <p class="small dim" style="margin:12px 0 0">
       反例最清楚的是沪深300：PE 分位 69%、PB 分位 20%，差 50 个百分点，而 ROE 只有 9.87%。
       如果只看 PB「十年 20% 分位」就判断便宜，会漏掉最关键的一句——便宜的是资产，不是盈利能力。
+      {data.indices.some((i) => typeof i.pe === 'number' && !(i.pe > 0)) && (
+        <>
+          <br />
+          <strong style="color:var(--expensive)">负 PE 的指数不进这张表。</strong>
+          它们的 PE 与 PB 分位差不是「ROE 下行」而是「亏损在扩大」，放进来会排出一条极端却无意义的假背离。
+          这类指数的处理写在上面那张指数表里：换尺子（PE → PB），换完尺子之后也不给通过。
+        </>
+      )}
     </p>
   </div>
 

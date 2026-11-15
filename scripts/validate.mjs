@@ -14,6 +14,8 @@ import { dirname, join } from 'node:path';
 import {
   deriveEtfStatus,
   deriveStatus,
+  etfThreeLayer,
+  indexValuation,
   percentileReliability,
   threeLayer,
   marginOfSafety,
@@ -243,14 +245,37 @@ const etfs = read('data/etfs.json');
 
     // ROE 必须等于 PB / PE。这个恒等式是「PE 分位与 PB 分位背离」的唯一解释，
     // 一旦手填的 ROE 与 PB/PE 对不上，背离叙事就失去了依据。
+    // 注意：PE 为负时 PB/PE 仍然是负的 ROE，恒等式照样成立（2026-11 加光伏时才发现旧版把这种情况一律判为错误，
+    // 结果是「亏损行业不许填 ROE」，等于把最需要解释的背离藏起来）。所以这里只禁 pe=0，并强制符号一致。
     if (typeof i.roe === 'number') {
-      if (typeof i.pb !== 'number' || typeof i.pe !== 'number' || i.pe <= 0) {
+      if (typeof i.pb !== 'number' || typeof i.pe !== 'number' || i.pe === 0) {
         errors.push(`${tag} 填了 roe 但缺 pb/pe，无法复算`);
       } else {
         const implied = (i.pb / i.pe) * 100;
         if (Math.abs(implied - i.roe) > 0.3) {
           errors.push(`${tag} ROE 与 PB/PE 不符：${i.pb}/${i.pe} = ${implied.toFixed(2)}%，但写了 ${i.roe}%`);
         }
+        if (i.pe < 0 && i.roe > 0) errors.push(`${tag} PE 为负、ROE 却为正：PB/PE 恒等式不成立`);
+        if (i.pe > 0 && i.roe < 0) errors.push(`${tag} PE 为正、ROE 却为负：PB/PE 恒等式不成立`);
+      }
+    }
+
+    /* ---- PE ≤ 0：估值层必须换尺子 ----
+       负数排序也能算出百分位，但那个百分位衡量的是「亏得多深」，不是「贵不贵」。
+       行业越亏，PE 越负，排名可能越靠前，结论会随基本面恶化而变得更「便宜」——方向是反的。
+       所以硬性要求：PE ≤ 0 时估值层必须回退 PB，且必须在 peCaveat 里解释亏损口径。 */
+    if (typeof i.pe === 'number' && i.pe <= 0) {
+      const v = indexValuation(i);
+      if (!v) {
+        errors.push(`${tag} PE 为负且没有 PB 分位：估值层会判不合格，但这是数据缺口，不是真实缺陷`);
+      } else if (v.kind !== 'pb') {
+        errors.push(`${tag} PE 为负却仍用 PE 分位作估值证据：负 PE 的分位是「亏得多深」的名次，方向反了`);
+      }
+      if (!i.peCaveat || !/(亏损|为负)/.test(i.peCaveat)) {
+        errors.push(`${tag} PE 为负却未在 peCaveat 里交代亏损口径与替代方案`);
+      }
+      if (typeof i.pbPct?.y10 !== 'number' && typeof i.pbPct?.y5 !== 'number') {
+        warnings.push(`${tag} PE 为负，建议补 PB 分位——否则估值层永远只能判不合格`);
       }
     }
 
@@ -353,6 +378,16 @@ const etfs = read('data/etfs.json');
     etfTally[derived] += 1;
     if (derived === 'buy' && e.premium == null) {
       errors.push(`${tag} 被判为可配置，但溢价未取得——成本层不可能通过`);
+    }
+
+    // 底层指数整体亏损时，PB 分位再低也不能作为「便宜」的证据：净资产正被亏损侵蚀。
+    if (typeof idx?.pe === 'number' && idx.pe <= 0) {
+      const valLayer = etfThreeLayer(e, idx, etfs.etfs)[1];
+      if (valLayer.state === 'pass') {
+        errors.push(
+          `${tag} 底层指数整体亏损（PE ${idx.pe}），估值层不得判为通过——用 PB 分位说「便宜」就是价值陷阱`
+        );
+      }
     }
   }
 

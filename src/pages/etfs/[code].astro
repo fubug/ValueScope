@@ -5,7 +5,8 @@ import {
   etfThreeLayer,
   deriveEtfStatus,
   etfPending,
-  indexPercentile,
+  indexValuation,
+  pbPercentile,
   premiumInFeeYears,
   premiumLimit,
   isQdii,
@@ -35,7 +36,8 @@ const st = deriveEtfStatus(e, idx, data.etfs);
 const pending = etfPending(e, idx, data.etfs);
 const passedCount = layers.filter((l) => l.state === 'pass').length;
 const feeYears = premiumInFeeYears(e);
-const p = indexPercentile(idx);
+const val = indexValuation(idx);
+const pbOnly = val?.kind === 'pb';
 
 const STATE_CLASS = { pass: 'cheap', partial: 'fair', fail: 'expensive' } as const;
 const STATE_ICON = { pass: '✓', partial: '△', fail: '✗' } as const;
@@ -151,19 +153,34 @@ const pctColor = (v: number) =>
   <div class="section-head"><h2>底层指数估值</h2><span class="hint">ETF 便宜不便宜，看的是这里</span></div>
   {idx && (
     <div class="card">
-      <div class="grid grid-3" style="gap:18px">
+      <div class="grid grid-2" style="gap:18px">
         <div class="kv">
           <span class="k">{idx.name} PE</span>
-          <span class="v">{idx.pe ?? '—'}</span>
-          <span class="sub" style={p ? `color:${pctColor(p.value)}` : ''}>
-            {p ? `${p.basis} ${p.value.toFixed(0)}` : '分位缺失'}
+          <span class="v" style={typeof idx.pe === 'number' && idx.pe <= 0 ? 'color:var(--expensive)' : ''}>
+            {idx.pe ?? '—'}
+          </span>
+          <span class="sub" style={pbOnly ? 'color:var(--expensive)' : val ? `color:${pctColor(val.value)}` : ''}>
+            {pbOnly ? '整体亏损，PE 分位不参与判断' : val ? `${val.basis} ${val.value.toFixed(0)}` : '分位缺失'}
           </span>
         </div>
         <div class="kv">
           <span class="k">PB</span>
           <span class="v">{idx.pb ?? '—'}</span>
           <span class="sub">
-            10 年分位 {typeof idx.pbPct.y10 === 'number' ? `${idx.pbPct.y10.toFixed(0)}` : '—'}
+            {pbOnly ? '本层改用：' : ''}
+            {(() => {
+              const pb = pbPercentile(idx);
+              return pb ? `${pb.basis} ${pb.value.toFixed(0)}` : '分位缺失';
+            })()}
+          </span>
+        </div>
+        <div class="kv">
+          <span class="k">ROE（= PB ÷ PE）</span>
+          <span class="v" style={typeof idx.roe === 'number' && !(idx.roe > 0) ? 'color:var(--expensive)' : ''}>
+            {idx.roe == null ? '—' : `${idx.roe}%`}
+          </span>
+          <span class="sub">
+            {typeof idx.roe === 'number' && !(idx.roe > 0) ? '净资产在被亏损吃掉' : '净资产还在增值'}
           </span>
         </div>
         <div class="kv">
@@ -172,6 +189,12 @@ const pctColor = (v: number) =>
           <span class="sub mono">{idx.asOf}</span>
         </div>
       </div>
+      {pbOnly && val && (
+        <p class="small" style="margin:16px 0 0;padding:12px;background:var(--panel-2);border-left:2px solid var(--expensive);border-radius:0 4px 4px 0;line-height:1.8">
+          <strong style="color:var(--expensive)">估值层换尺子了：</strong>
+          {val.fallbackReason}。{val.equityErosion}
+        </p>
+      )}
       {idx.peCaveat && (
         <p class="small muted" style="margin:16px 0 0;padding-top:12px;border-top:1px solid var(--line);line-height:1.75">
           <strong style="color:var(--fair)">口径提示：</strong>{idx.peCaveat}

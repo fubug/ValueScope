@@ -646,21 +646,78 @@ export function peerFee(
   };
 }
 
-/** 底层指数的主分位：PE 10 年优先，其次 5 年、3 年 */
-export function indexPercentile(
-  idx: EtfIndex | undefined
-): { value: number; basis: string; window: 'y3' | 'y5' | 'y10' } | null {
-  if (!idx) return null;
-  const order: Array<[keyof EtfIndex['pePct'], string]> = [
-    ['y10', 'PE 10 年分位'],
-    ['y5', 'PE 5 年分位'],
-    ['y3', 'PE 3 年分位'],
+type PctWindow = 'y3' | 'y5' | 'y10';
+type PctPick = { value: number; basis: string; window: PctWindow };
+
+/** 从一组分位里挑主分位：10 年 → 5 年 → 3 年。PE 与 PB 共用这一把尺子 */
+function pickPercentile(set: EtfIndex['pePct'] | undefined, prefix: 'PE' | 'PB'): PctPick | null {
+  if (!set) return null;
+  const order: Array<[PctWindow, string]> = [
+    ['y10', `${prefix} 10 年分位`],
+    ['y5', `${prefix} 5 年分位`],
+    ['y3', `${prefix} 3 年分位`],
   ];
   for (const [w, label] of order) {
-    const v = idx.pePct[w];
-    if (typeof v === 'number') return { value: v, basis: label, window: w as 'y3' | 'y5' | 'y10' };
+    const v = set[w];
+    if (typeof v === 'number') return { value: v, basis: label, window: w };
   }
   return null;
+}
+
+/** 底层指数的主分位：PE 10 年优先，其次 5 年、3 年 */
+export function indexPercentile(idx: EtfIndex | undefined): PctPick | null {
+  return pickPercentile(idx?.pePct, 'PE');
+}
+
+/** PB 分位。只在 PE 不可用时作为替代证据，不能和 PE 分位同时当「两条证据」用 */
+export function pbPercentile(idx: EtfIndex | undefined): PctPick | null {
+  return pickPercentile(idx?.pbPct, 'PB');
+}
+
+export interface ValuationEvidence extends PctPick {
+  kind: 'pe' | 'pb';
+  /** 为什么不用 PE（kind='pb' 时必填） */
+  fallbackReason?: string;
+  /** ROE ≤ 0：便宜的是净资产，而净资产正在被亏损吃掉 */
+  equityErosion?: string;
+}
+
+/**
+ * 估值层到底拿哪把尺子量——这是 2026-11 加光伏时发现的漏洞。
+ *
+ * 故障场景：中证光伏产业（931151）整体法 PE 是 -65.91。分位照样算得出来（13.90%），
+ * 因为把一堆负数排序也能排出百分位。于是旧规则会输出「PE 10 年分位 14，偏便宜」——
+ * 一个完全由「亏得有多深」决定的名次，被当成了估值证据。指数越亏，PE 越负，
+ * 排名反而可能越靠前，结论会随亏损扩大而变得「更便宜」，方向是反的。
+ *
+ * 所以定一条硬规则：PE ≤ 0 时 PE 分位失效，改用 PB 分位，并且**最多只算部分通过**。
+ * 理由是 PB 处在低位只说明「资产被折价」，而指数整体亏损时，PB 的分母（净资产）
+ * 恰恰在缩水——今天 1.71 倍 PB 对应的净资产，明年可能少掉一块，PB 会自动「变贵」。
+ * 这种便宜无法用「等它涨回来」来兑现，除非盈利先转正。
+ */
+export function indexValuation(idx: EtfIndex | undefined): ValuationEvidence | null {
+  if (!idx) return null;
+
+  const peUsable = typeof idx.pe === 'number' && idx.pe > 0;
+  if (peUsable) {
+    const p = indexPercentile(idx);
+    return p ? { ...p, kind: 'pe' } : null;
+  }
+
+  const pb = pbPercentile(idx);
+  if (!pb) return null;
+
+  const fallbackReason =
+    typeof idx.pe === 'number'
+      ? `PE 为 ${idx.pe}（指数整体亏损）：PE 分位只是把负数排序，名次由「亏多亏少」决定，不能当估值证据，本层改用 PB`
+      : '未取得 PE，本层改用 PB';
+
+  const equityErosion =
+    typeof idx.roe === 'number' && idx.roe <= 0
+      ? `ROE ${idx.roe}%：净资产本身在缩水，PB 的分母还在变小。低 PB 不等于资产打折，也可能只是亏损还没把净资产吃完`
+      : undefined;
+
+  return { ...pb, kind: 'pb', fallbackReason, equityErosion };
 }
 
 export interface PctReliability {
@@ -767,16 +824,33 @@ export function etfThreeLayer(e: Etf, idx: EtfIndex | undefined, peers?: Etf[]):
 
   /* --- ② 估值层 --- */
   {
-    const p = indexPercentile(idx);
+    const v = indexValuation(idx);
     let state: CheckState;
     let headline: string;
     let detail: string;
-    if (!p) {
+    if (!v) {
       state = 'fail';
-      headline = '底层指数缺估值分位';
+      headline = typeof idx?.pe === 'number' && idx.pe <= 0
+        ? '指数整体亏损，且没有 PB 分位可用——估值层无从判断'
+        : '底层指数缺估值分位';
       detail = idx?.peCaveat ?? '未取得该指数的口径说明';
+    } else if (v.kind === 'pb') {
+      /* PE 不可用（多为整体亏损）。PB 分位低只能证明「资产被折价」，
+         不能证明「便宜」——盈利为负时净资产在被侵蚀，这是价值陷阱的形态，不是安全边际。
+         所以这里最高只给 partial：数据齐全，但便宜无法验证。 */
+      const rel = percentileReliability(idx!, v.window, idx!.asOf);
+      const tagText = rel && rel.level !== 'high' ? `（分位可信度${rel.level === 'low' ? '低' : '中'}）` : '';
+      if (v.value > 65) {
+        state = 'fail';
+        headline = `${idx!.name} PE 不可用，改用 ${v.basis} ${v.value.toFixed(0)}%，资产也不便宜${tagText}`;
+      } else {
+        state = 'partial';
+        headline = `${idx!.name} PE 不可用，改用 ${v.basis} ${v.value.toFixed(0)}%，资产折价但便宜无法验证${tagText}`;
+      }
+      detail = [v.fallbackReason, v.equityErosion, rel?.reason, idx?.peCaveat].filter(Boolean).join('｜');
     } else {
-      const rel = percentileReliability(idx, p.window, idx!.asOf);
+      const p = v;
+      const rel = percentileReliability(idx!, p.window, idx!.asOf);
       const tagText =
         rel && rel.level !== 'high' ? `（分位可信度${rel.level === 'low' ? '低' : '中'}）` : '';
       if (p.value <= 35) {
