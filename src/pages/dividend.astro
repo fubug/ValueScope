@@ -1,0 +1,319 @@
+---
+import Base from '../layouts/Base.astro';
+import d from '../../data/dividend.json';
+import etfsData from '../../data/etfs.json';
+import { etfThreeLayer, type EtfsFile } from '../lib/rules';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const data = d;
+const v = data.valuation;
+const c = data.conflict;
+const sd = data.spreadDecomposition;
+const con = data.concentration;
+const bk = data.banks;
+const vd = data.verdict;
+
+const idx = (etfsData as unknown as EtfsFile).indices.find((i) => i.id === 'csi-divlow');
+const layers = idx ? etfThreeLayer((etfsData as unknown as EtfsFile).etfs.find((e) => e.code === '512890')!, idx) : [];
+
+const pctColor = (p: number) =>
+  p <= 15 ? 'var(--cheap)' : p <= 35 ? 'var(--fair)' : p <= 65 ? 'var(--muted)' : 'var(--expensive)';
+
+const bar = (p: number, color: string) =>
+  `width:${Math.max(2, Math.min(100, p))}%;background:${color};height:100%;border-radius:2px`;
+
+const STATE_CLASS = { pass: 'cheap', partial: 'fair', fail: 'expensive' } as const;
+const STATE_TEXT = { pass: '通过', partial: '部分', fail: '未过' } as const;
+---
+
+<Base
+  title="红利低波体检"
+  subtitle="红利低波卖的不是成长，是「4.6% 的股息率 vs 1.6% 的国债」。对它用 PE 分位这把尺子，会得出反直觉的结论——本页把两把尺子的冲突摊开。"
+>
+  <h1>红利低波体检</h1>
+  <p class="lede">
+    中证红利低波动（H30269）· 50 只成分股 · 股息率加权。
+    它不是宽基，是一个<strong>策略指数</strong>；它也不是「分散配置」，是一个<strong>以银行为主的高股息组合</strong>。
+    这两点决定了它该用哪把尺子量。
+  </p>
+
+  <div class="notice" style="margin-top:20px">
+    <strong>一句话结论：</strong>{vd.oneLine}
+  </div>
+
+  <!-- 一、两把尺子打架 -->
+  <div class="section-head">
+    <h2>一、两把尺子，指向完全相反</h2>
+    <span class="hint">绝对锚说便宜，相对锚说贵，而且差得很远</span>
+  </div>
+
+  <div class="grid grid-2">
+    <div class="card">
+      <div class="kv">
+        <span class="k">绝对锚 · 股息率 − 10Y国债</span>
+        <span class="v" style="color:var(--cheap)">+{c.spread.toFixed(2)} pct</span>
+        <span class="sub">{v.dividendYield}% − {data.meta.riskFree.value}%　门槛 2pct → <strong style="color:var(--cheap)">通过</strong></span>
+      </div>
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
+        <div class="kv">
+          <span class="k">派息率</span>
+          <span class="v">{v.payoutRatio}%</span>
+          <span class="sub">门槛 &lt; 70% → <strong style="color:var(--cheap)">通过</strong>，且仍有提升空间</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="kv">
+        <span class="k">相对锚 · PE 历史分位</span>
+        <span class="v" style="color:var(--expensive)">{v.pePct.y10.toFixed(0)}%</span>
+        <span class="sub">10 年分位　5 年 {v.pePct.y5}%　3 年 {v.pePct.y3}%</span>
+      </div>
+      <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px">
+        {[
+          ['PE 10 年分位', v.pePct.y10],
+          ['PE 5 年分位', v.pePct.y5],
+          ['PE 3 年分位', v.pePct.y3],
+          ['股息率 10 年分位', v.dyPct.y10],
+        ].map(([label, p]) => (
+          <div>
+            <div class="small" style="display:flex;justify-content:space-between;margin-bottom:3px">
+              <span class="muted">{label as string}</span>
+              <span class="mono" style="color:{pctColor(p as number)}">{(p as number).toFixed(1)}%</span>
+            </div>
+            <div style="height:6px;background:var(--panel-2);border-radius:2px;overflow:hidden">
+              <div style={bar(p as number, pctColor(p as number))}></div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <p class="small dim" style="margin:10px 0 0">分位越高越贵。股息率分位 37% 说的是：历史上 63% 的时间比现在便宜。</p>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h3 style="margin-top:0">为什么会分裂成这样</h3>
+    <p class="muted">{c.why}</p>
+    <p class="muted" style="margin-bottom:0;padding-top:12px;border-top:1px solid var(--line)">
+      <strong style="color:var(--text)">怎么解释：</strong>{c.resolution}
+    </p>
+  </div>
+
+  <!-- 二、股债差拆解 -->
+  <div class="section-head">
+    <h2>二、那个 3.02 的利差，有多少是国债送的</h2>
+    <span class="hint">这是本页最重要的一张表</span>
+  </div>
+
+  <div class="card" style="overflow-x:auto">
+    <table>
+      <thead>
+        <tr><th>情景</th><th class="mono">10Y 国债</th><th class="mono">股息利差</th><th>含义</th></tr>
+      </thead>
+      <tbody>
+        {sd.scenarios.map((s) => (
+          <tr>
+            <td><strong>{s.label}</strong></td>
+            <td class="mono">{s.yield10y.toFixed(2)}%</td>
+            <td class="mono" style={`color:${s.spread >= 3 ? 'var(--cheap)' : s.spread >= 2 ? 'var(--fair)' : 'var(--expensive)'};font-weight:600`}>
+              {s.spread.toFixed(2)} pct
+            </td>
+            <td class="small muted">{s.note}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+    <p class="small dim" style="margin:14px 0 0">
+      10 年利差均值 {sd.mean10y}（范围 {sd.range}），当前位于 37% 分位。
+    </p>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <p class="muted" style="margin:0">{sd.insight}</p>
+  </div>
+
+  <!-- 三、它不是低波，是银行低波 -->
+  <div class="section-head">
+    <h2>三、「低波」是筛选结果，不是分散结果</h2>
+    <span class="hint">银行占一半，前五大行业占 74%</span>
+  </div>
+
+  <div class="grid grid-2">
+    <div class="card">
+      <div class="kv" style="margin-bottom:16px">
+        <span class="k">银行权重</span>
+        <span class="v" style="color:var(--expensive)">{con.bankWeight}%</span>
+        <span class="sub">前五大行业合计 {con.top5}%</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        {con.sectors.map((s) => (
+          <div>
+            <div class="small" style="display:flex;justify-content:space-between;margin-bottom:3px">
+              <span>{s.name}</span>
+              <span class="mono muted">{s.weight}%</span>
+            </div>
+            <div style="height:8px;background:var(--panel-2);border-radius:2px;overflow:hidden">
+              <div style={bar(s.weight, s.weight > 40 ? 'var(--expensive)' : 'var(--accent)')}></div>
+            </div>
+            {s.note && <div class="small dim" style="margin-top:3px">{s.note}</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="muted" style="margin-top:0">{con.insight}</p>
+      <div style="margin-top:14px;padding:12px 14px;background:rgba(255,91,91,0.06);border:1px solid rgba(255,91,91,0.2);border-radius:6px">
+        <div class="small" style="color:var(--expensive);font-weight:600;margin-bottom:6px">最大的暴露，恰好是最弱的一档</div>
+        <p class="small muted" style="margin:0">{con.worstPart}</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 四、银行基本面 -->
+  <div class="section-head">
+    <h2>四、决定它涨跌的是净息差，不是「红利」两个字</h2>
+    <span class="hint">54% 的仓位押在这一个变量上</span>
+  </div>
+
+  <div class="grid grid-3">
+    <div class="card">
+      <div class="kv">
+        <span class="k">商业银行净息差 · 2026Q3</span>
+        <span class="v">{bk.nim}%</span>
+        <span class="sub">Q1 的 {bk.nimLow}% 是历史低点，Q2 起首现环比回升</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="kv">
+        <span class="k">上市银行净利增速</span>
+        <span class="v">{bk.profitGrowth}%</span>
+        <span class="sub">营收 +{bk.revenueGrowth}%　Q3 单季净利 +{bk.q3ProfitGrowth}%</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="kv">
+        <span class="k">资产减值损失同比</span>
+        <span class="v" style="color:var(--expensive)">+{bk.impairmentGrowth}%</span>
+        <span class="sub">拨备计提明显加大</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <p class="muted" style="margin-top:0">{bk.nimNote}</p>
+    <p class="muted">{bk.qualityNote}</p>
+    <p class="muted" style="margin-bottom:0;padding-top:12px;border-top:1px solid var(--line)">
+      <strong style="color:var(--text)">对估值的含义：</strong>{bk.implication}
+    </p>
+    <p class="small dim" style="margin:10px 0 0">
+      2027 年展望（券商一致口径）：{bk.outlook2027}。
+    </p>
+  </div>
+
+  <!-- 五、工具层 -->
+  <div class="section-head">
+    <h2>五、工具层：费率差 3 倍，现金股息一分没有</h2>
+    <span class="hint">同一个指数，选错工具等于每年白交 0.4%</span>
+  </div>
+
+  <div class="card" style="overflow-x:auto">
+    <table>
+      <thead>
+        <tr>
+          <th>代码</th><th>名称</th><th class="mono">规模</th><th class="mono">综合费率</th>
+          <th class="mono">折溢价</th><th class="mono">日均成交</th><th>分红</th>
+        </tr>
+      </thead>
+      <tbody>
+        {data.tools.map((t) => (
+          <tr>
+            <td class="mono"><a href={`${base}/etfs/${t.code}/`}>{t.code}</a></td>
+            <td>{t.name}</td>
+            <td class="mono">{t.scale} 亿</td>
+            <td class="mono" style={`color:${t.fee <= 0.25 ? 'var(--cheap)' : 'var(--expensive)'};font-weight:600`}>{t.fee}%</td>
+            <td class="mono" style={`color:${t.premium > 0 ? 'var(--expensive)' : 'var(--cheap)'}`}>
+              {t.premium > 0 ? '+' : ''}{t.premium}%
+            </td>
+            <td class="mono">{t.turnover == null ? '—' : `${t.turnover} 亿`}</td>
+            <td class="small" style={t.dividend.includes('从未') ? 'color:var(--expensive)' : 'color:var(--muted)'}>{t.dividend}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+    <p class="small dim" style="margin:14px 0 0">{data.feeGap.note}</p>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h3 style="margin-top:0;color:var(--expensive)">{data.cashFlow.headline}</h3>
+    <p class="muted">{data.cashFlow.detail}</p>
+    <p class="muted" style="margin-bottom:0">{data.cashFlow.implication}</p>
+  </div>
+
+  <!-- 六、判定 -->
+  <div class="section-head">
+    <h2>六、判定与边界</h2>
+    <span class="hint">三层校验 + 什么情况下这个结论会变</span>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+      <span class={`badge ${vd.status}`} style="font-size:13px;padding:6px 12px">
+        {vd.status === 'watch' ? '需观察' : vd.status === 'buy' ? '可配置' : '回避'}
+      </span>
+      <span class="small muted">三层里两层通过、一层未过——卡在估值，不在成本也不在工具</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:0">
+      {vd.layers.map((l) => (
+        <div style="display:flex;gap:14px;padding:12px 0;border-top:1px solid var(--line)">
+          <div style="flex:0 0 26px;font-family:var(--mono);color:var(--dim);font-size:13px">{`0${l.layer}`}</div>
+          <div style="flex:1">
+            <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
+              <strong style="font-size:13.5px">{l.name}</strong>
+              <span class={`badge ${STATE_CLASS[l.state as keyof typeof STATE_CLASS]}`}>
+                {STATE_TEXT[l.state as keyof typeof STATE_TEXT]}
+              </span>
+            </div>
+            <div class="small" style="margin-top:4px">{l.headline}</div>
+            <div class="small dim" style="margin-top:3px">{l.detail}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+
+  <div class="grid grid-2" style="margin-top:14px">
+    <div class="card">
+      <h3 style="margin-top:0;color:var(--cheap)">什么情况下它可以买</h3>
+      <ul class="clean" style="padding-left:20px;line-height:1.85;margin:0">
+        {vd.conditions.buyIf.map((t) => <li class="small muted">{t}</li>)}
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0;color:var(--expensive)">什么情况下不该碰</h3>
+      <ul class="clean" style="padding-left:20px;line-height:1.85;margin:0">
+        {vd.conditions.avoidIf.map((t) => <li class="small muted">{t}</li>)}
+      </ul>
+    </div>
+  </div>
+
+  <!-- 七、口径 -->
+  <div class="section-head">
+    <h2>七、口径与来源</h2>
+    <span class="hint">快照 {data.meta.snapshot}</span>
+  </div>
+  <div class="card">
+    <p class="small muted" style="margin-top:0">{data.meta.note}</p>
+    <ul class="clean small dim" style="padding-left:20px;line-height:1.9;margin:0">
+      <li>估值：PE {v.pe}、PB {v.pb}、股息率 {v.dividendYield}%，截至 {v.asOf}。三个来源 PE 分别为 8.67 / 8.89 / 9.05，差异来自更新时点。</li>
+      <li>分位：10 年 / 5 年 / 3 年滚动百分位，取自 A股行情指标接口与韭圈说，两者 10 年分位相差 0.8pct（80.36 vs 79.52）。</li>
+      <li>行业权重：申万一级分类，截至 2026-09-30 / 11-06 两版口径一致（银行 54.0%）。</li>
+      <li>银行经营数据：2026 年三季报，42 家 A 股上市银行合计口径；净息差为国泰金融监管总局与中泰证券统计口径。</li>
+      <li>工具数据：规模截至 2026-11-04（512890）与 11-09（159547）；费率取自基金合同与产品资料概要。</li>
+    </ul>
+    <p class="small dim" style="margin:14px 0 0;padding-top:12px;border-top:1px solid var(--line)">
+      <strong>没有解决的：</strong>PE 分位与股息率分位的背离，本质是「红利指数的估值中枢会随利率漂移」，这一点本页只能用国债情景表做敏感性分析，没有可靠的量化判据——
+      和个股页里东鹏遇到的「估值锚迁移」是同一个问题，同一个未解。
+    </p>
+  </div>
+</Base>

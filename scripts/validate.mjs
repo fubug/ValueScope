@@ -291,6 +291,90 @@ const etfs = read('data/etfs.json');
   if ((etfs.etfs ?? []).length === 0) warnings.push('ETF 列表为空');
 }
 
+/* ---------- 红利低波专题 ---------- */
+// 这个页面的核心是两个互相矛盾的指标。矛盾本身允许存在，但每个数字必须自洽，
+// 否则页面会变成「用两套口径各自支撑一个结论」。
+const div = read('data/dividend.json');
+{
+  const tag = 'dividend';
+  const v = div.valuation ?? {};
+  const c = div.conflict ?? {};
+  const rf = div.meta?.riskFree?.value;
+
+  if (typeof rf !== 'number') errors.push(`${tag} 缺少 meta.riskFree.value，绝对锚无法复算`);
+  if (typeof v.dividendYield !== 'number' || typeof v.pe !== 'number') {
+    errors.push(`${tag} 缺 valuation.dividendYield / pe`);
+  } else {
+    // 派息率 = 股息率 × PE，误差超过 1pct 说明分子分母用了不同口径
+    const implied = v.dividendYield * v.pe;
+    if (typeof v.payoutRatio === 'number' && Math.abs(implied - v.payoutRatio) > 1) {
+      errors.push(`${tag} 派息率不自洽：${v.dividendYield}% × ${v.pe} = ${implied.toFixed(1)}%，但写了 ${v.payoutRatio}%`);
+    }
+    if (typeof rf === 'number' && typeof c.spread === 'number') {
+      const s = v.dividendYield - rf;
+      if (Math.abs(s - c.spread) > 0.06) {
+        errors.push(`${tag} 股息利差不自洽：${v.dividendYield}% − ${rf}% = ${s.toFixed(2)}，但写了 ${c.spread}`);
+      }
+    }
+    for (const sc of div.spreadDecomposition?.scenarios ?? []) {
+      const s = v.dividendYield - sc.yield10y;
+      if (Math.abs(s - sc.spread) > 0.06) {
+        errors.push(`${tag} 情景「${sc.label}」利差不自洽：应为 ${s.toFixed(2)}，写了 ${sc.spread}`);
+      }
+    }
+  }
+
+  // 分裂叙述里的分位必须与 valuation 同源，否则「80% vs 37%」这组对比是拼出来的
+  if (typeof c.pePct === 'number' && Math.abs(c.pePct - (v.pePct?.y10 ?? NaN)) > 0.5) {
+    errors.push(`${tag} conflict.pePct 与 valuation.pePct.y10 不一致（${c.pePct} vs ${v.pePct?.y10}）`);
+  }
+  if (typeof c.pe5Pct === 'number' && Math.abs(c.pe5Pct - (v.pePct?.y5 ?? NaN)) > 0.5) {
+    errors.push(`${tag} conflict.pe5Pct 与 valuation.pePct.y5 不一致（${c.pe5Pct} vs ${v.pePct?.y5}）`);
+  }
+  if (typeof c.spreadPct === 'number' && Math.abs(c.spreadPct - (v.dyPct?.y10 ?? NaN)) > 0.5) {
+    errors.push(`${tag} conflict.spreadPct 与 valuation.dyPct.y10 不一致`);
+  }
+
+  // 集中度：银行权重必须与行业表里那条对得上，且合计不能超过 100
+  const con = div.concentration ?? {};
+  const sumW = (con.sectors ?? []).reduce((a, s) => a + (s.weight ?? 0), 0);
+  if (sumW > 100.5) errors.push(`${tag} 行业权重合计 ${sumW.toFixed(2)}% 超过 100%`);
+  const bankRow = (con.sectors ?? []).find((s) => s.name === '银行');
+  if (bankRow && typeof con.bankWeight === 'number' && Math.abs(bankRow.weight - con.bankWeight) > 0.05) {
+    errors.push(`${tag} bankWeight ${con.bankWeight} 与行业表里的银行权重 ${bankRow.weight} 不一致`);
+  }
+  if (typeof con.bankWeight === 'number' && con.bankWeight < 30) {
+    warnings.push(`${tag} 银行权重 ${con.bankWeight}% 偏低，确认是否换了指数口径`);
+  }
+
+  // 工具引用完整性：专题页列的工具必须真的在 etfs.json 里，否则链接是死的
+  const codes = new Set((etfs.etfs ?? []).map((e) => e.code));
+  for (const t2 of div.tools ?? []) {
+    if (!codes.has(t2.code)) errors.push(`${tag} 引用的 ETF ${t2.code} 不在 data/etfs.json 中`);
+  }
+  if (!Array.isArray(div.tools) || div.tools.length < 2) {
+    warnings.push(`${tag} 工具对比不足 2 只，无法体现费率差异`);
+  }
+
+  // 结论必须带边界条件，否则又是一个不可推翻的判断
+  if ((div.verdict?.conditions?.buyIf ?? []).length < 2) errors.push(`${tag} buyIf 至少 2 条`);
+  if ((div.verdict?.conditions?.avoidIf ?? []).length < 2) errors.push(`${tag} avoidIf 至少 2 条`);
+
+  // status 与三层派生对齐
+  const dIdx = (etfs.indices ?? []).find((i) => i.id === 'csi-divlow');
+  const dEtf = (etfs.etfs ?? []).find((e) => e.code === '512890');
+  if (dIdx && dEtf && div.verdict?.status) {
+    const derived = deriveEtfStatus(dEtf, dIdx);
+    if (derived !== div.verdict.status) {
+      errors.push(
+        `${tag} verdict.status=${div.verdict.status}，但按三层复算是 ${derived}——改结论要改输入或改规则，不能只改字`
+      );
+    }
+  } else if (!dIdx) {
+    errors.push(`${tag} data/etfs.json 里找不到 csi-divlow 指数`);
+  }
+}
+
 /* ---------- 行业 ---------- */
 const sectors = read('data/sectors.json');
 for (const s of sectors.sectors ?? []) {
