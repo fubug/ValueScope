@@ -6,6 +6,8 @@ import {
   judge,
   pickPrimaryPercentile,
   erpAdjustGate,
+  absolutePositions,
+  positionHint,
   CONFIDENCE_LABEL,
   INTEGRITY_LABEL,
   KIND_LABEL,
@@ -27,6 +29,9 @@ const { m } = Astro.props as { m: Market };
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const v = judge(m);
 const gate = erpAdjustGate(m);
+/* 横向位置：在全部市场里排第几。与分位互补——分位答「相对自己的历史」，
+   这个答「相对其它市场」，两者都不完整，所以要并排显示。 */
+const myPositions = absolutePositions(data.markets).get(m.id) ?? [];
 
 const fmt = (x: number | null | undefined, d = 2) => (x == null ? '—' : x.toFixed(d));
 
@@ -93,14 +98,56 @@ const integrityClass = v.integrity === 'broken' ? 'expensive' : v.integrity === 
   <div class="grid grid-3" style="margin-top:16px">
     <div class="card">
       <div class="kv"><span class="k">PE (TTM)</span><span class={`v ${m.valuation.peTtm == null ? 'na' : ''}`}>{fmt(m.valuation.peTtm)}</span></div>
+      {myPositions.find((p) => p.metric === 'pe') && (
+        <div class="small dim" style="margin-top:6px">全球 {positionHint(myPositions.find((p) => p.metric === 'pe')!)}</div>
+      )}
     </div>
     <div class="card">
       <div class="kv"><span class="k">PB</span><span class={`v ${m.valuation.pb == null ? 'na' : ''}`}>{fmt(m.valuation.pb)}</span></div>
+      {myPositions.find((p) => p.metric === 'pb') && (
+        <div class="small dim" style="margin-top:6px">全球 {positionHint(myPositions.find((p) => p.metric === 'pb')!)}</div>
+      )}
     </div>
     <div class="card">
       <div class="kv"><span class="k">股息率</span><span class={`v ${m.valuation.dividendYield == null ? 'na' : ''}`}>{m.valuation.dividendYield == null ? '待接入' : `${fmt(m.valuation.dividendYield)}%`}</span></div>
+      {myPositions.find((p) => p.metric === 'dividendYield') && (
+        <div class="small dim" style="margin-top:6px">全球 {positionHint(myPositions.find((p) => p.metric === 'dividendYield')!)}</div>
+      )}
     </div>
   </div>
+
+  {(m.valuation.cape != null || m.valuation.peForward != null) && (
+    <div class="grid grid-3" style="margin-top:12px">
+      {m.valuation.cape != null && (
+        <div class="card">
+          <div class="kv"><span class="k">CAPE（十年通胀调整）</span><span class="v">{fmt(m.valuation.cape)}</span></div>
+          {myPositions.find((p) => p.metric === 'cape') && (
+            <div class="small dim" style="margin-top:6px">全球 {positionHint(myPositions.find((p) => p.metric === 'cape')!)}</div>
+          )}
+        </div>
+      )}
+      {m.valuation.peForward != null && (
+        <div class="card">
+          <div class="kv"><span class="k">前向 PE</span><span class="v">{fmt(m.valuation.peForward)}</span></div>
+          {myPositions.find((p) => p.metric === 'peForward') && (
+            <div class="small dim" style="margin-top:6px">
+              全球 {positionHint(myPositions.find((p) => p.metric === 'peForward')!)}
+              <br /><span style="color:var(--fair)">分母是盈利预测，波动来自预期变化</span>
+            </div>
+          )}
+        </div>
+      )}
+      {m.valuation.pbForward != null && (
+        <div class="card">
+          <div class="kv"><span class="k">前向 PBR</span><span class="v">{fmt(m.valuation.pbForward)}</span></div>
+          <div class="small dim" style="margin-top:6px">
+            {m.valuation.pbForward < 1 ? '破净：市值低于预期净资产' : '接近净资产'}
+            <br /><span style="color:var(--fair)">前瞻口径，与 TTM PB 不同分母，不参与全球排名</span>
+          </div>
+        </div>
+      )}
+    </div>
+  )}
 
   <div class="section-head">
     <h2>估值分位</h2>

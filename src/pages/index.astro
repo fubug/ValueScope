@@ -6,6 +6,8 @@ import {
   judge,
   pickPrimaryPercentile,
   marketSortKey,
+  absolutePositions,
+  positionHint,
   CONFIDENCE_LABEL,
   INTEGRITY_LABEL,
   type MarketsFile,
@@ -29,9 +31,18 @@ const rows = data.markets
     return 0;
   });
 
+/* 横向：当期估值的跨市场排名。与「分位」这个纵向尺度互补，
+   让没有分位序列的市场（英/德/越/韩）也能看到自己的位置。 */
+const positions = absolutePositions(data.markets);
+const posMetrics = ['pe', 'pb', 'cape', 'peForward', 'dividendYield'] as const;
+const posOrder = [...data.markets].sort(
+  (a, b) => (a.valuation.peTtm ?? 999) - (b.valuation.peTtm ?? 999)
+);
+
 const unknown = rows.filter((r) => r.v.tier === 'unknown').length;
 const missingLongRun = data.markets.filter((m) => m.longRun.cagr10y == null).length;
 const notComparable = rows.filter((r) => !r.v.comparable).length;
+const withPercentile = rows.filter((r) => r.p).length;
 
 const fmt = (v: number | null | undefined, digits = 1) =>
   v == null ? '—' : v.toFixed(digits);
@@ -53,49 +64,68 @@ const fmt = (v: number | null | undefined, digits = 1) =>
     跨指标、跨窗口的「谁更贵」不再排名——<strong>分位不说窗口，等于没说。</strong>
   </div>
 
-  <div class="grid grid-3" style="margin-top:24px">
+  <div class="grid grid-2" style="margin-top:24px">
     <div class="card">
-      <h3>美股：最贵，且机会成本为负</h3>
+      <h3>美国：三个口径，三种「贵」</h3>
       <p class="small muted" style="margin-bottom:10px">
-        CAPE 40.71，1871 年以来 99 分位；仅 1999-03 至 2000-09 的 18 个月份比它更高。
+        CAPE 40.71 是 1881 年以来第 19 高，只有 1999-03 至 2000-09 的 18 个月份更高。
       </p>
       <div class="stat-row">
-        <div class="kv"><span class="k">CAPE</span><span class="v">40.71</span></div>
-        <div class="kv"><span class="k">股息率</span><span class="v">1.07%</span></div>
-        <div class="kv"><span class="k">ERP</span><span class="v" style="color:var(--expensive)">-2.69%</span></div>
+        <div class="kv"><span class="k">CAPE 45 年分位</span><span class="v" style="color:var(--expensive)">96.3</span></div>
+        <div class="kv"><span class="k">TTM PE</span><span class="v">23.9</span></div>
+        <div class="kv"><span class="k">前向 PE</span><span class="v">18.7</span></div>
       </div>
       <p class="small dim" style="margin-top:10px;margin-bottom:0">
-        10Y 美债 5.15%，而股票盈利收益率只有 2.46%——买股票比买债券少赚 2.69 个百分点。
+        前向 PE 18.7 已低于历史均值 19.06——但这个「便宜」是分子跌掉 5%、分母（盈利预期）还在涨来的，
+        而盈利预期的依托正是市场最担心的 AI 资本开支。10Y 美债 4.93%，ERP −2.47% 仍为负。
       </p>
     </div>
 
     <div class="card">
-      <h3>中国资产：指数不便宜，结构很便宜</h3>
+      <h3>韩国：账面便宜到极端，但那不是同一个分母</h3>
       <p class="small muted" style="margin-bottom:10px">
-        沪深300 PB 处十年 22 分位，但 PE 在 69 分位——便宜的是资产，不是利润。
+        10 月 −16.2%、11 月首周 −11.7%，11-06 单日 −8% 触发熔断；11-09 勉强守住 5,000。
       </p>
       <div class="stat-row">
-        <div class="kv"><span class="k">沪深300 PB 分位</span><span class="v">22</span></div>
-        <div class="kv"><span class="k">A股 ERP 分位</span><span class="v">71.6</span></div>
-        <div class="kv"><span class="k">恒生科技 PE 分位</span><span class="v">9</span></div>
+        <div class="kv"><span class="k">前向 PER</span><span class="v" style="color:var(--cheap)">3.54</span></div>
+        <div class="kv"><span class="k">前向 PBR</span><span class="v" style="color:var(--cheap)">0.95</span></div>
+        <div class="kv"><span class="k">10 月跌幅</span><span class="v" style="color:var(--expensive)">−16.2%</span></div>
       </div>
       <p class="small dim" style="margin-top:10px;margin-bottom:0">
-        恒指整体只是 60 分位，折价集中在恒生科技（9 分位）；港股的问题不是估值，是成交额在缩。
+        3.54 倍是 2001 年以来最低，但它算的是 2027 年预期盈利——SK 海力士 2027 营业利润被预测到 443.8 万亿韩元（+56%）。
+        <strong>便宜与否取决于一个和砸盘同源的变量</strong>，所以本面板给的是「数据不足」而不是「极具性价比」。
       </p>
     </div>
 
     <div class="card">
-      <h3>越南：唯一分子分母同时有利</h3>
+      <h3>中国：便宜的是资产，不是利润</h3>
       <p class="small muted" style="margin-bottom:10px">
-        PE 11.1 倍，低于近 3 年均值 14.6 约 24%；HOSE 前三季净利同比 +48.8%。
+        沪深300 PE 十年 68 分位，PB 十年 21 分位——差 47 个百分点，是本次调研最大的指标背离。
       </p>
       <div class="stat-row">
-        <div class="kv"><span class="k">PE</span><span class="v">11.1</span></div>
-        <div class="kv"><span class="k">3 年均值</span><span class="v">14.6</span></div>
-        <div class="kv"><span class="k">存款利率</span><span class="v" style="color:var(--expensive)">9%</span></div>
+        <div class="kv"><span class="k">PE 分位</span><span class="v" style="color:var(--expensive)">68</span></div>
+        <div class="kv"><span class="k">PB 分位</span><span class="v" style="color:var(--cheap)">21</span></div>
+        <div class="kv"><span class="k">股息率</span><span class="v">3.14%</span></div>
       </div>
       <p class="small dim" style="margin-top:10px;margin-bottom:0">
-        但无风险利率 9%，股票要跑赢它才有超额；且 Vingroup 系占市值 29%，买指数等于重仓地产。
+        PE 高是因为盈利在周期底部（三季报净利 +8%、9 月 PPI +5.0% 已在修复），不是估值高。
+        买 PE 高分位是赌盈利修复，买 PB 低分位是买资产——两个不同的赌注。
+      </p>
+    </div>
+
+    <div class="card">
+      <h3>越南：分子分母同时有利，但指数在骗人</h3>
+      <p class="small muted" style="margin-bottom:10px">
+        TTM PE 10.97，剔除 Vingroup 系后仅 9.1；存款利率已从 5.97% 降到 5.55%。
+      </p>
+      <div class="stat-row">
+        <div class="kv"><span class="k">TTM PE</span><span class="v">10.97</span></div>
+        <div class="kv"><span class="k">剔除 Vingroup</span><span class="v">9.1</span></div>
+        <div class="kv"><span class="k">存款利率</span><span class="v">5.55%</span></div>
+      </div>
+      <p class="small dim" style="margin-top:10px;margin-bottom:0">
+        <strong>本次调研更正了此前的一处错误</strong>：面板原记「存款利率约 9%」，实为 5.55%。
+        9% 会让越南的性价比结论完全反转。但 Vingroup 占市值 29%，买指数等于被动重仓一个房地产集团。
       </p>
     </div>
   </div>
@@ -168,9 +198,68 @@ const fmt = (v: number | null | undefined, digits = 1) =>
     </p>
   )}
 
+  <div class="section-head">
+    <h2>绝对估值横向定位</h2>
+    <span class="hint">纵向分位答不了的问题，用横向排名答——但这是两把尺，不能合成一个分数</span>
+  </div>
+
+  <div class="notice">
+    <strong>为什么要单独做这一块。</strong>
+    本次调研发现长期分位的可得性极不均匀：{rows.length} 个市场里只有 {withPercentile} 个拿得到可信的长期分位序列，
+    英、德、越、韩 只有当期估值、没有历史序列，于是只能判「数据不足」。
+    但「没有分位」不等于「没有信息」——<span class="mono">PE 14.86</span> 与 <span class="mono">18.82</span> 谁高谁低是客观事实。
+    下面这张表只做<strong>事实陈述</strong>（在 {rows.length} 个市场里排第几），不含判断：
+    PE 低既可能是便宜，也可能是结构性折价——富时 100 的科技权重只有约 1%，它便宜是因为它是旧经济。
+  </div>
+
+  <div class="card" style="padding:18px 20px 6px;overflow-x:auto">
+    <table>
+      <thead>
+        <tr>
+          <th>市场</th>
+          {posMetrics.map((k) => (
+            <th class="num">{k === 'pe' ? 'PE 排名' : k === 'pb' ? 'PB 排名' : k === 'cape' ? 'CAPE 排名' : k === 'peForward' ? '前向 PE 排名' : '股息率排名'}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {posOrder.map((m) => {
+          const ps = positions.get(m.id) ?? [];
+          return (
+            <tr>
+              <td>
+                <a href={`${base}/markets/${m.id}/`} style="font-weight:550">{m.name}</a>
+                <div class="small dim mono">{m.indexName}</div>
+              </td>
+              {posMetrics.map((k) => {
+                const p = ps.find((x) => x.metric === k);
+                if (!p) return <td class="num dim">—</td>;
+                const cheap = p.rank / p.total <= 0.5;
+                return (
+                  <td class="num">
+                    <span class="mono">{p.value.toFixed(p.metric === 'dividendYield' ? 2 : 1)}</span>
+                    <div class="small" style={cheap ? 'color:var(--cheap)' : 'color:var(--muted)'}>
+                      {positionHint(p)}
+                    </div>
+                  </td>
+                );
+              })}
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+    <p class="small dim" style="margin:0 0 4px">
+      排名口径：PE / PB / CAPE / 前向 PE 越低越便宜，股息率越高越便宜。分母随指标变化（缺该项的市场不参与该列排名），
+      所以「第 3」要看分母——某列只有 5 个有效值时，第 3 是中间，不是「第三便宜」。
+      这不是分位，不能替代分位：分位回答「相对自己的历史」，这里回答「相对其它市场」。
+    </p>
+  </div>
+
   <div class="notice info" style="margin-top:20px">
-    <strong>两个已知缺口</strong>，不填数字也不假装有：
-    ① 欧洲 STOXX 600 本次未取得可信估值，全字段留空；
-    ② <strong>{missingLongRun} 个市场的长期年化收益与夏普比率尚未接入</strong>——沙箱内可用的历史行情接口（stooq / Yahoo / 东方财富）均被限流或需浏览器渲染，拿不到干净的长序列。这一列是「长期赚不赚钱」的核心，比估值分位更重要，我会在你确认数据源后补上（MSCI 年度指数报告或本地 CSV 均可）。
+    <strong>三个已知缺口</strong>，不填数字也不假装有：
+    ① <strong>{missingLongRun} 个市场的长期年化收益与夏普比率全部未接入</strong>——沙箱内可用的历史行情接口（stooq / Yahoo / 东方财富）均被限流或需浏览器渲染，拿不到干净的长序列。这一列是「长期赚不赚钱」的核心，比估值分位更重要；补数据的方式是把月度或年度收盘价放进 <span class="mono">data/series/</span>，由脚本自己算，比抄第三方更可信。
+    ② <strong>{rows.length - withPercentile} 个市场（英/德/越/韩）没有长期分位序列</strong>，只有当期估值，因此判「数据不足」。不是没查——是这类数据要么收费（Bloomberg/Wind 的历史 PE 序列）、要么需登录，公开源只给当期值。
+    ③ <strong>STOXX 600 仍未收录</strong>：本次拿到英（14.86）、法（16.50）、德（18.82）三国的万得同源读数，但没有 STOXX 600 的可靠 PE/PB，故按国家分列而不混成一个「欧洲」——三国估值差 27%，合并会失真。
   </div>
 </Base>

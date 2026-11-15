@@ -123,6 +123,8 @@ export interface Market {
     cape: number | null;
     dividendYield: number | null;
     peForward?: number | null;
+    /** 前瞻 PB。与 TTM PB 不同口径（分母是预期净资产），不能与 pb 同列排名 */
+    pbForward?: number | null;
   };
   /** 分位：0-100，越高越贵。每格都带自己的窗口长度 */
   percentiles: {
@@ -661,6 +663,93 @@ export const INTEGRITY_LABEL: Record<Integrity, string> = {
   suspect: '口径存疑',
   broken: '证据不足',
 };
+
+/* ------------------------------------------------------------
+ * 绝对估值横向定位
+ * ------------------------------------------------------------
+ * 2026-11 深度调研发现一个结构性问题：长期分位的可得性极不均匀。
+ * 9 个市场里只有 5 个能拿到可信的长期分位（美/中/港/日/印），
+ * 英、德、越、韩 全部只有当期 PE/PB，没有分位序列——于是它们只能判「数据不足」。
+ * 结果 6/9 没有方向，面板失去区分度。
+ *
+ * 但「没有分位」不等于「没有信息」。当期 PE 14.86 与 18.82 的高低是客观事实，
+ * 只是它回答的问题不同：
+ *   分位      → 「这个市场相对它自己的历史，现在贵不贵」（纵向）
+ *   绝对水平  → 「这个市场相对其它市场，现在贵不贵」（横向）
+ * 两者都回答「贵不贵」，但参照系不同，不能互相替代，也不能合成一个分数。
+ *
+ * 所以这里只做**事实陈述**：在所有有该指标的市场里排第几。
+ * 排名不含判断，判断留给 analystView——因为「PE 低」既可能是便宜，
+ * 也可能是结构性折价（富时 100 的科技权重只有 1%）。
+ * ------------------------------------------------------------ */
+
+export interface PeerPosition {
+  metric: 'pe' | 'pb' | 'dividendYield' | 'cape' | 'peForward';
+  label: string;
+  value: number;
+  /** 排名，1 = 最便宜。PE/PB/CAPE 越低越便宜；股息率越高越便宜 */
+  rank: number;
+  total: number;
+  /** true = 这个指标越高越便宜（只有股息率是） */
+  inverted: boolean;
+}
+
+const POSITION_METRICS: Array<{ key: PeerPosition['metric']; label: string; inverted: boolean }> = [
+  { key: 'pe', label: 'PE (TTM)', inverted: false },
+  { key: 'pb', label: 'PB', inverted: false },
+  { key: 'cape', label: 'CAPE', inverted: false },
+  { key: 'peForward', label: '前向 PE', inverted: false },
+  { key: 'dividendYield', label: '股息率', inverted: true },
+];
+
+function readMetric(m: Market, key: PeerPosition['metric']): number | null {
+  if (key === 'cape') return m.valuation.cape;
+  if (key === 'peForward') return m.valuation.peForward ?? null;
+  if (key === 'pe') return m.valuation.peTtm;
+  if (key === 'pb') return m.valuation.pb;
+  return m.valuation.dividendYield;
+}
+
+/**
+ * 每个市场在每个指标上「排第几」。含缺失值的市场不参与该指标的排名，
+ * 但 total 会随指标变化——所以页面必须显示 n/N，否则「第 3」看不出分母。
+ */
+export function absolutePositions(markets: Market[]): Map<string, PeerPosition[]> {
+  const out = new Map<string, PeerPosition[]>();
+
+  for (const def of POSITION_METRICS) {
+    const pool = markets
+      .map((m) => ({ id: m.id, v: readMetric(m, def.key) }))
+      .filter((x): x is { id: string; v: number } => typeof x.v === 'number' && Number.isFinite(x.v));
+    if (pool.length < 3) continue;
+
+    const sorted = [...pool].sort((a, b) => (def.inverted ? b.v - a.v : a.v - b.v));
+    sorted.forEach((row, i) => {
+      const list = out.get(row.id) ?? [];
+      list.push({
+        metric: def.key,
+        label: def.label,
+        value: row.v,
+        rank: i + 1,
+        total: pool.length,
+        inverted: def.inverted,
+      });
+      out.set(row.id, list);
+    });
+  }
+
+  return out;
+}
+
+/** 排名转成人话 */
+export function positionHint(p: PeerPosition): string {
+  const ratio = p.rank / p.total;
+  if (p.total < 4) return `第 ${p.rank}/${p.total}`;
+  if (ratio <= 0.25) return `最便宜的一档（第 ${p.rank}/${p.total}）`;
+  if (ratio <= 0.5) return `偏低（第 ${p.rank}/${p.total}）`;
+  if (ratio <= 0.75) return `偏高（第 ${p.rank}/${p.total}）`;
+  return `最贵的一档（第 ${p.rank}/${p.total}）`;
+}
 
 export const CONFIDENCE_LABEL: Record<Confidence, string> = {
   high: '数据可靠',
