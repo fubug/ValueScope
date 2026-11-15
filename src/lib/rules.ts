@@ -548,6 +548,8 @@ export interface EtfIndex {
   pb: number | null;
   pbPct: { y3?: number | null; y5?: number | null; y10?: number | null };
   dividendYield: number | null;
+  /** ROE（%）= PB / PE。PE 分位与 PB 分位的背离就是它造成的，缺了它无法解释背离 */
+  roe?: number | null;
   asOf: string;
   peCaveat?: string;
   sources: string[];

@@ -238,6 +238,29 @@ const etfs = read('data/etfs.json');
     if (!i.peCaveat || i.peCaveat.length < 20) {
       warnings.push(`${tag} 没有 peCaveat：跨市场 PE 口径差异大，建议说明用的是哪套口径`);
     }
+
+    // ROE 必须等于 PB / PE。这个恒等式是「PE 分位与 PB 分位背离」的唯一解释，
+    // 一旦手填的 ROE 与 PB/PE 对不上，背离叙事就失去了依据。
+    if (typeof i.roe === 'number') {
+      if (typeof i.pb !== 'number' || typeof i.pe !== 'number' || i.pe <= 0) {
+        errors.push(`${tag} 填了 roe 但缺 pb/pe，无法复算`);
+      } else {
+        const implied = (i.pb / i.pe) * 100;
+        if (Math.abs(implied - i.roe) > 0.3) {
+          errors.push(`${tag} ROE 与 PB/PE 不符：${i.pb}/${i.pe} = ${implied.toFixed(2)}%，但写了 ${i.roe}%`);
+        }
+      }
+    }
+
+    // 分位背离超过 30pct 时，必须有 roe 才能解释；否则页面会给出「假便宜」的错误暗示
+    if (
+      typeof i.pePct?.y10 === 'number' &&
+      typeof i.pbPct?.y10 === 'number' &&
+      Math.abs(i.pePct.y10 - i.pbPct.y10) > 30 &&
+      typeof i.roe !== 'number'
+    ) {
+      warnings.push(`${tag} PE/PB 分位差 ${(i.pePct.y10 - i.pbPct.y10).toFixed(0)}pct，但没有 roe，背离无法解释`);
+    }
   }
 
   for (const e of etfs.etfs ?? []) {

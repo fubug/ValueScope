@@ -42,7 +42,7 @@ npm run build   # 构建到 dist/
 |---|---|
 | `data/markets.json` | 市场估值快照。改 `snapshot` 日期，核对分位口径后填入 `percentiles` |
 | `data/stocks.json` | 个股。新增一只必须填 `certainty`（高/中/低确定性）、`payoutRatio`、`anchorNote`、`veto`；status 与买入价自动派生，不要手填 |
-| `data/etfs.json` | ETF 工具。indices 放底层指数估值（必须带 sources 与口径说明），etfs 放工具成本（溢价/费率/申购状态）。溢价为空必须用 note 说明，填了必须与 price/nav 自洽 |
+| `data/etfs.json` | ETF 工具。indices 放底层指数估值（必须带 sources 与口径说明；PE/PB 分位差超 30pct 必须填 `roe`，校验强制 roe = PB/PE），etfs 放工具成本（溢价/费率/申购状态）。溢价为空必须用 note 说明，填了必须与 price/nav 自洽 |
 | `data/screen.json` | 低估值扫描的板块级统计（破净分布、盲区说明），不放个股结论 |
 | `data/dividend.json` | 红利低波专题。所有派生数字（派息率、利差、情景利差）都会被校验复算，手改结论而不改输入会被 CI 拒绝 |
 | `data/sectors.json` | 行业观点，更新 `pePercentileBasis` 的数据日期 |

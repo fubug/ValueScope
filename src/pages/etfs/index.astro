@@ -50,6 +50,22 @@ const suspendedPremium = data.etfs.filter(
 
 const pctColor = (p: number) =>
   p <= 15 ? 'var(--cheap)' : p <= 35 ? 'var(--fair)' : p <= 65 ? 'var(--muted)' : 'var(--expensive)';
+
+// PE 分位与 PB 分位的背离 = ROE 变化的痕迹。
+// PB / PE = ROE，所以「PB 分位低但 PE 分位高」只有一种解释：净资产还在，赚钱能力退了。
+// 这条规则是自动的，不针对某一只指数——任何新加进来的指数都会被同一把尺子量一遍。
+const divergences = data.indices
+  .filter((i) => typeof i.pePct.y10 === 'number' && typeof i.pbPct.y10 === 'number')
+  .map((i) => ({
+    name: i.name,
+    code: i.code,
+    pePct: i.pePct.y10 as number,
+    pbPct: i.pbPct.y10 as number,
+    gap: (i.pePct.y10 as number) - (i.pbPct.y10 as number),
+    roe: i.roe ?? (i.pb && i.pe ? +((i.pb / i.pe) * 100).toFixed(2) : null),
+  }))
+  .filter((i) => Math.abs(i.gap) > 30)
+  .sort((a, b) => Math.abs(b.gap) - Math.abs(a.gap));
 ---
 
 <Base
@@ -129,15 +145,58 @@ const pctColor = (p: number) =>
           </div>
         ))}
     </div>
-    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
-      <a href={`${base}/etfs/dividend/`} style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--panel-2);border:1px solid var(--line);border-radius:6px">
-        <span class="small" style="flex:1">
-          <strong style="color:var(--text)">红利低波（H30269）单独体检</strong>
-          <span class="dim">　54% 银行、PE 5 年分位 99.7%、股息率 4.62% 但不发现金——三件事需要一起看</span>
-        </span>
-        <span class="small" style="color:var(--accent)">查看 →</span>
-      </a>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h3 style="margin-top:0">PE 分位与 PB 分位打架时，看 ROE</h3>
+    <p class="small muted" style="margin-top:0">
+      PB ÷ PE 就是 ROE。所以「PB 分位低、PE 分位高」不是数据错误，是净资产还在、赚钱能力退了——
+      这种便宜是假便宜。「PB 分位高、PE 分位低」则相反：市场愿意为净资产付高价，因为它的盈利率真的高。
+      下表是差值超过 30 个百分点的指数，自动筛出，不用手填。
+    </p>
+    <div style="overflow-x:auto">
+      <table style="margin-top:6px">
+        <thead>
+          <tr>
+            <th>指数</th><th class="num">PE 分位</th><th class="num">PB 分位</th>
+            <th class="num">差值</th><th class="num">ROE</th><th>读法</th>
+          </tr>
+        </thead>
+        <tbody>
+          {divergences.map((d) => (
+            <tr>
+              <td><strong>{d.name}</strong> <span class="small dim mono">{d.code}</span></td>
+              <td class="num mono" style={`color:${pctColor(d.pePct)}`}>{d.pePct.toFixed(1)}</td>
+              <td class="num mono" style={`color:${pctColor(d.pbPct)}`}>{d.pbPct.toFixed(1)}</td>
+              <td class="num mono" style="font-weight:600">{d.gap > 0 ? '+' : ''}{d.gap.toFixed(1)}</td>
+              <td class="num mono">{d.roe == null ? '—' : `${d.roe}%`}</td>
+              <td class="small" style={`color:${d.roe == null ? 'var(--dim)' : d.gap > 0 ? 'var(--expensive)' : 'var(--cheap)'}`}>
+                {d.roe == null
+                  ? 'ROE 未取得，背离待核'
+                  : d.gap > 0
+                    ? 'ROE 下行：PB 便宜是假便宜'
+                    : 'ROE 高位：PB 贵是赚钱能力撑的'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
+    {divergences.length === 0 && <p class="small dim" style="margin:0">当前没有背离超过 30pct 的指数。</p>}
+    <p class="small dim" style="margin:12px 0 0">
+      反例最清楚的是沪深300：PE 分位 69%、PB 分位 20%，差 50 个百分点，而 ROE 只有 9.87%。
+      如果只看 PB「十年 20% 分位」就判断便宜，会漏掉最关键的一句——便宜的是资产，不是盈利能力。
+    </p>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <a href={`${base}/etfs/dividend/`} style="display:flex;align-items:center;gap:10px">
+      <span class="small" style="flex:1">
+        <strong style="color:var(--text)">红利低波（H30269）单独体检</strong>
+        <span class="dim">　54% 银行、PE 5 年分位 99.7%、股息率 4.62% 但不发现金——三件事需要一起看</span>
+      </span>
+      <span class="small" style="color:var(--accent)">查看 →</span>
+    </a>
   </div>
 
   <div class="section-head">
