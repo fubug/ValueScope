@@ -139,6 +139,64 @@ const pctColor = (x: number) =>
         </span>
         <span class="sub">{entry.headline}</span>
       </div>
+      {/* 周期位置：强周期行业里「现在在哪」比「贵不贵」更要紧，
+          同一只指数在周期顶与底的合理 PB 可以差一倍 */}
+      {idx?.cycle && (
+        <div
+          class="small"
+          style="margin:12px 0 0;padding:10px 12px;background:rgba(255,255,255,.02);border-radius:6px;line-height:1.8"
+        >
+          <div>
+            <span class="dim">周期位置 · </span>
+            {idx.cycle.indicator}
+            <span class="mono" style="margin-left:6px">{idx.cycle.value} {idx.cycle.unit}</span>
+          </div>
+          <div class="mono dim" style="font-size:11.5px;margin-top:3px">
+            {idx.cycle.asOf}
+            {' · '}
+            {idx.cycle.zone === 'peak'
+              ? '周期顶部'
+              : idx.cycle.zone === 'high'
+                ? '周期高位'
+                : idx.cycle.zone === 'mid'
+                  ? '周期中段'
+                  : idx.cycle.zone === 'low'
+                    ? '周期低位'
+                    : '周期底部'}
+            {idx.cycle.ytd != null && ` · 年初至今 ${idx.cycle.ytd > 0 ? '+' : ''}${idx.cycle.ytd}%`}
+            {idx.cycle.mom != null && ` · 近一月 ${idx.cycle.mom > 0 ? '+' : ''}${idx.cycle.mom}%`}
+            {idx.cycle.range52w && ` · 52 周 ${idx.cycle.range52w[0]}–${idx.cycle.range52w[1]}`}
+          </div>
+          {idx.cyclical?.driverWeight != null && (
+            <div class="dim" style="margin-top:4px">
+              该指数中受「{idx.cyclical.driver}」影响的权重约 {idx.cyclical.driverWeight}%——剩下{' '}
+              {(100 - idx.cyclical.driverWeight).toFixed(0)}% 与它无关。
+            </div>
+          )}
+          {idx.cycle.note && <div class="dim" style="margin-top:4px">{idx.cycle.note}</div>}
+        </div>
+      )}
+      {entry.cycle?.normalized && (
+        <div
+          class="small"
+          style="margin:8px 0 0;padding:10px 12px;background:rgba(255,255,255,.02);border-radius:6px;line-height:1.8"
+        >
+          <div>
+            <span class="dim">PB-ROE 反推 · </span>
+            PB {entry.cycle.normalized.pb.toFixed(2)} × ROE {entry.cycle.normalized.roeUsed.toFixed(1)}%
+            <span class="dim">（{entry.cycle.normalized.roeSource}）</span>
+            <span class="mono" style="margin-left:6px">
+              → 隐含长期回报 {entry.cycle.normalized.impliedReturn.toFixed(1)}%
+            </span>
+          </div>
+          <div class="dim" style="margin-top:3px">
+            {entry.cycle.normalized.verdict === 'pass'
+              ? `达到 ${entry.cycle.normalized.threshold}% 门槛`
+              : `低于 ${entry.cycle.normalized.threshold}% 门槛——分位说便宜也不成便宜`}
+            。{entry.cycle.normalized.note}
+          </div>
+        </div>
+      )}
       {entry.blocks.length > 0 ? (
         <div class="small" style="margin:12px 0 0;line-height:1.8;color:var(--muted)">
           {entry.blocks.length > 1 || entry.headline !== entry.blocks[0] ? '不给方向的理由：' : null}

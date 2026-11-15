@@ -970,6 +970,39 @@ export interface EtfIndex {
     note?: string;
   } | null;
   peCaveat?: string;
+  /**
+   * 周期性标记。2026-11 加航运时发现规则有个方向性错误：
+   * 对强周期行业，PE 分位是**反向指标**——盈利在顶部时 PE 低（分母大），
+   * 盈利在底部时 PE 高（分母小）。拿它判「便宜」等于在周期顶部买入。
+   * 现有 entryAssessment 对这一点毫无防备，因为前面 10 个指数里没有一个是强周期。
+   */
+  cyclical?: {
+    level: 'strong' | 'moderate' | 'none';
+    /** 驱动变量，如「BDI 干散货运价」「集运运价 SCFI」 */
+    driver: string;
+    /** 该指数中受驱动影响的权重（%）。35% 的权重意味着 65% 的涨跌与运价无关 */
+    driverWeight?: number | null;
+    /** 正常化 ROE（%）：跨完整周期的中枢，不是当期读数 */
+    normalizedRoe?: number | null;
+    note?: string;
+  } | null;
+  /**
+   * 周期位置快照。判断「现在在哪」比判断「贵不贵」更重要：
+   * 同一只指数在周期顶部和底部的合理 PB 可以差一倍。
+   */
+  cycle?: {
+    indicator: string;
+    value: number;
+    unit: string;
+    asOf: string;
+    range52w?: [number, number] | null;
+    /** 年初至今涨跌幅（%） */
+    ytd?: number | null;
+    /** 近一月涨跌幅（%） */
+    mom?: number | null;
+    zone: 'peak' | 'high' | 'mid' | 'low' | 'trough';
+    note?: string;
+  } | null;
   sources: string[];
 }
 
@@ -1554,8 +1587,16 @@ export function toolAssessment(e: Etf, peers?: Etf[], refDate?: string): ToolAss
       headline = `费率 ${e.fee.total}% 是同指数最低 ${peer?.min}% 的 ${peer?.ratio.toFixed(1)} 倍，成交仅 ${e.turnover} 亿`;
     } else if (fr === 'high') {
       headline = `费率 ${e.fee.total}% 是同指数最低 ${peer?.min}% 的 ${peer?.ratio.toFixed(1)} 倍`;
+    } else if (pool.length === 1) {
+      /* 同一指数只有这一只时，「落后」不是比较出来的，是绝对水平不合格。
+         2026-11 加航运时发现：516910 是同类唯一产品，却因为成交 0.19 亿被判
+         「落后同类」——它没有同类。真实含义是「这个赛道没有合格的现成工具」。 */
+      headline = `同指数仅此一只，但日均成交 ${e.turnover ?? '—'} 亿低于 ${ETF_TURNOVER_MIN} 亿下限——这个赛道没有合格的现成工具`;
     } else {
-      headline = `日均成交 ${e.turnover} 亿，低于 ${ETF_TURNOVER_MIN} 亿下限，滑点风险`;
+      headline =
+        rank === 1
+          ? `日均成交 ${e.turnover} 亿，低于 ${ETF_TURNOVER_MIN} 亿下限——同类第 1/${ordered.length}，但绝对水平不合格`
+          : `日均成交 ${e.turnover} 亿，低于 ${ETF_TURNOVER_MIN} 亿下限，同类第 ${rank}/${ordered.length}`;
     }
   }
 
@@ -1572,6 +1613,126 @@ export function toolAssessment(e: Etf, peers?: Etf[], refDate?: string): ToolAss
   };
 }
 
+/* ============================================================
+ * 周期股守卫
+ * ------------------------------------------------------------
+ * entryAssessment 用分位判贵贱，这个逻辑对稳定行业成立：估值区间在十年里
+ * 围绕中枢波动，偏离即回归。强周期行业不成立。
+ *
+ * 以 2026 年 11 月的航运为例：BDI 年初至今 +108.8%、VLCC 中东-中国航线
+ * 日收益 128.6 万美元，而中远海控 PE(TTM) 只有 7.52 倍——因为分母是周期
+ * 顶部的盈利。低 PE 不代表便宜，代表「这次盈利不可持续」。反过来在 2023 年
+ * 集运低谷，中远海控 PE(TTM) 曾超过 40 倍，高 PE 也不代表贵。
+ *
+ * 所以对强周期行业：
+ *   ① PE 分位只在周期中段才有判读力；
+ *   ② 周期高位 + PE 低 → 不得判便宜（那是顶部盈利的镜子）；
+ *   ③ 周期低位 + PE 高 → 不得判贵；
+ *   ④ PB-ROE 反推必须用正常化 ROE，不能用当期 ROE。
+ * ============================================================ */
+
+export interface CycleGuard {
+  triggered: boolean;
+  kind: 'peak-pe-low' | 'trough-pe-high' | null;
+  reasons: string[];
+  /** 正常化 ROE 下的 PB-ROE 反推 */
+  normalized: {
+    roeUsed: number;
+    roeSource: '当期' | '正常化';
+    impliedReturn: number;
+    threshold: number;
+    verdict: 'pass' | 'fail';
+    pb: number;
+    note: string;
+  } | null;
+}
+
+/** 要求回报门槛：与个股 PB-ROE 反推同一把尺子，保证 ETF 与个股结论可比 */
+export const ETF_REQUIRED_RETURN = 8;
+/** 永续增长率假设 */
+export const ETF_PERPETUAL_G = 3;
+/** 当期 ROE 比正常化 ROE 高出多少算「周期顶部盈利」（相对幅度） */
+export const ROE_PEAK_GAP = 0.35;
+
+/**
+ * PB-ROE 反推：r = g + (ROE − g) / PB
+ *
+ * 戈登模型的变形。前提是 ROE 可持续——对周期股必须换成正常化 ROE，
+ * 否则会把「今年赚得多」当成「永远赚得多」。
+ */
+export function impliedReturn(roe: number, pb: number, g = ETF_PERPETUAL_G): number | null {
+  if (!(pb > 0) || roe == null) return null;
+  return g + (roe - g) / pb;
+}
+
+export function cycleGuard(idx: EtfIndex | undefined): CycleGuard {
+  const none: CycleGuard = { triggered: false, kind: null, reasons: [], normalized: null };
+  if (!idx || !idx.cyclical || idx.cyclical.level === 'none') return none;
+
+  const reasons: string[] = [];
+  let kind: CycleGuard['kind'] = null;
+  const zone = idx.cycle?.zone;
+  const v = indexValuation(idx);
+
+  if (v && zone) {
+    /* 「PE 十年分位 5%」在航运里出现过，但同一时刻运价在十年新高——
+       两个读数都真，含义相反。低 PE 是分子小造成的便宜假象。 */
+    if ((zone === 'peak' || zone === 'high') && v.value <= 35) {
+      kind = 'peak-pe-low';
+      reasons.push(
+        `${idx.cycle?.indicator ?? '景气指标'} 处${
+          zone === 'peak' ? '周期顶部' : '周期高位'
+        }，而 ${v.basis} ${v.value.toFixed(0)} 偏低——低估值来自分母变大，不是价格变便宜`
+      );
+    }
+    if ((zone === 'low' || zone === 'trough') && v.value >= 65) {
+      kind = 'trough-pe-high';
+      reasons.push(
+        `${idx.cycle?.indicator ?? '景气指标'} 处周期${
+          zone === 'trough' ? '底部' : '低位'
+        }，而 ${v.basis} ${v.value.toFixed(0)} 偏高——高估值来自分母变小，不是价格变贵`
+      );
+    }
+  }
+
+  /* PB-ROE 反推：强制用正常化 ROE。
+     航运当期 ROE 11.6%，正常化约 7%——用前者算出「隐含回报 10%」会得出
+     「很便宜」，用后者只有 6.3%，低于 8% 门槛。差的这部分就是周期红利。 */
+  let normalized: CycleGuard['normalized'] = null;
+  const pb = idx.pb;
+  const roeNow = idx.roe;
+  const roeNorm = idx.cyclical.normalizedRoe;
+  if (roeNow != null && pb != null && pb > 0) {
+    const useNorm = roeNorm != null && roeNow > roeNorm * (1 + ROE_PEAK_GAP);
+    const roeUsed = useNorm ? roeNorm : roeNow;
+    const r = impliedReturn(roeUsed, pb);
+    if (r != null) {
+      normalized = {
+        roeUsed,
+        roeSource: useNorm ? '正常化' : '当期',
+        impliedReturn: r,
+        threshold: ETF_REQUIRED_RETURN,
+        verdict: r >= ETF_REQUIRED_RETURN ? 'pass' : 'fail',
+        pb,
+        note: useNorm
+          ? `当期 ROE ${roeNow.toFixed(1)}% 比正常化 ${roeNorm.toFixed(1)}% 高 ${(
+              (roeNow / roeNorm - 1) * 100
+            ).toFixed(0)}%，按正常化 ROE 反推`
+          : '当期 ROE 未显著高于正常化中枢，直接使用当期读数',
+      };
+      if (r < ETF_REQUIRED_RETURN) {
+        reasons.push(
+          `PB ${pb.toFixed(2)} × ROE ${roeUsed.toFixed(1)}%（${normalized.roeSource}）反推隐含长期回报 ${r.toFixed(
+            1
+          )}%，低于 ${ETF_REQUIRED_RETURN}% 门槛`
+        );
+      }
+    }
+  }
+
+  return { triggered: reasons.length > 0, kind, reasons, normalized };
+}
+
 export interface EntryAssessment {
   grade: EntryGrade;
   kind: 'pe' | 'pb' | 'none';
@@ -1581,6 +1742,8 @@ export interface EntryAssessment {
   blocks: string[];
   /** 不构成 block、但必须让用户知道的口径说明 */
   notes: string[];
+  /** 周期股守卫的结论。非周期行业为 null */
+  cycle: CycleGuard | null;
   headline: string;
 }
 
@@ -1594,12 +1757,12 @@ export interface EntryAssessment {
  */
 export function entryAssessment(idx: EtfIndex | undefined): EntryAssessment {
   if (!idx) {
-    return { grade: 'unclear', kind: 'none', percentile: null, reliability: null, blocks: ['缺底层指数'], notes: [], headline: '无底层指数' };
+    return { grade: 'unclear', kind: 'none', percentile: null, reliability: null, blocks: ['缺底层指数'], notes: [], cycle: null, headline: '无底层指数' };
   }
   const v = indexValuation(idx);
   if (!v) {
     const why = typeof idx.pe === 'number' && idx.pe <= 0 ? '指数整体亏损且无 PB 分位可用' : '缺估值分位';
-    return { grade: 'unclear', kind: 'none', percentile: null, reliability: null, blocks: [why], notes: [], headline: why };
+    return { grade: 'unclear', kind: 'none', percentile: null, reliability: null, blocks: [why], notes: [], cycle: null, headline: why };
   }
   const rel = percentileReliability(idx, v.window, idx.asOf);
   const blocks: string[] = [];
@@ -1620,18 +1783,57 @@ export function entryAssessment(idx: EtfIndex | undefined): EntryAssessment {
     else blocks.push(div.reason);
   }
 
+  /* 周期守卫：强周期行业在周期顶/底时，分位的方向是反的。
+     这一类不给方向，因为「PE 低」和「便宜」在这个行业里是两件事。 */
+  const cg = cycleGuard(idx);
+  if (cg.kind) blocks.push(...cg.reasons);
+
   let grade: EntryGrade;
   if (blocks.length > 0) grade = 'unclear';
   else if (v.value <= 35) grade = 'cheap';
   else if (v.value <= 65) grade = 'fair';
   else grade = 'expensive';
 
+  /* 隐含回报给档位设上限。这是第二把尺子，和分位并列而不是从属：
+     分位回答「在历史区间的哪个位置」，PB-ROE 回答「按这个价格买，长期能拿多少」。
+     两者冲突时取更保守的那个——因为后者才是决策依据。 */
+  if (cg.normalized && grade !== 'unclear') {
+    const r = cg.normalized.impliedReturn;
+    const capByReturn: EntryGrade =
+      r < ETF_REQUIRED_RETURN - 1.5 ? 'expensive' : r < ETF_REQUIRED_RETURN ? 'fair' : 'cheap';
+    const ORDER: EntryGrade[] = ['cheap', 'fair', 'expensive'];
+    if (ORDER.indexOf(grade) < ORDER.indexOf(capByReturn)) {
+      notes.push(
+        `分位读「${ENTRY_LABEL[grade]}」，但 PB ${cg.normalized.pb.toFixed(2)} × ROE ${cg.normalized.roeUsed.toFixed(
+          1
+        )}%（${cg.normalized.roeSource}）反推隐含回报 ${r.toFixed(1)}%，只支持「${
+          ENTRY_LABEL[capByReturn]
+        }」——取更保守的那个`
+      );
+      grade = capByReturn;
+    }
+  }
+
+  /* 分位便宜但正常化 ROE 反推的隐含回报不到门槛 → 降为中性。
+     这一步专门拦「周期红利被当成永久盈利能力」的误判。 */
+  if (grade === 'cheap' && cg.normalized && cg.normalized.verdict === 'fail') {
+    grade = 'fair';
+    notes.push(
+      `分位读数是便宜，但${cg.normalized.note}，隐含回报 ${cg.normalized.impliedReturn.toFixed(
+        1
+      )}% 未达 ${ETF_REQUIRED_RETURN}% 门槛——降为中性`
+    );
+  }
+  if (cg.normalized && grade !== 'unclear') notes.push(cg.normalized.note);
+
   const basis = `${v.basis} ${v.value.toFixed(0)}`;
   /* unclear 时不要把「分位 X，但 PB 分位与 PE 分位差 Y 点」拼两遍——
      用户扫标题只看前半句，重复的数值会让真正的理由被挤到视线外。 */
-  const headline = blocks.length ? `${blocks[0]}——不给方向` : `${basis}，${grade === 'cheap' ? '偏便宜' : grade === 'fair' ? '中性' : '偏贵'}`;
+  const headline = blocks.length
+    ? `${blocks[0]}——不给方向`
+    : `${basis}，${grade === 'cheap' ? '偏便宜' : grade === 'fair' ? '中性' : '偏贵'}`;
 
-  return { grade, kind: v.kind, percentile: v, reliability: rel, blocks, notes, headline };
+  return { grade, kind: v.kind, percentile: v, reliability: rel, blocks, notes, cycle: cg, headline };
 }
 
 export function costStateOf(e: Etf): CostState {
@@ -1681,7 +1883,11 @@ export function etfVerdict(e: Etf, idx: EtfIndex | undefined, peers?: Etf[], ref
       ? '工具同类最优'
       : tool.grade === 'competitive'
         ? '工具处于竞争档'
-        : '工具落后同类';
+        : tool.total === 1
+          ? '工具本身不达标'
+          : tool.rank === 1
+            ? '同类里最好的一只，但绝对水平不合格'
+            : '工具落后同类';
   const entryPart =
     entry.grade === 'cheap'
       ? '指数便宜'

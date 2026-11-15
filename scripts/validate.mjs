@@ -33,6 +33,10 @@ import {
   peSourceConflict,
   percentileReliability,
   percentileWindowConflict,
+  cycleGuard,
+  impliedReturn,
+  ETF_REQUIRED_RETURN,
+  ROE_PEAK_GAP,
   threeLayer,
   marginOfSafety,
   buyZoneOf,
@@ -318,10 +322,18 @@ const etfs = read('data/etfs.json');
     if (indexIds.has(i.id)) errors.push(`${tag} id 重复`);
     indexIds.add(i.id);
     if (!i.name || !i.code) errors.push(`${tag} 缺少 name/code`);
-    if (!i.asOf) errors.push(`${tag} 缺少 asOf——估值分位必须标时点`);
+
+    /* 数据缺口必须显式声明。2026-11 加中证智选船舶产业（932420）时遇到：
+       指数 2025 年才发布、样本 40 只，拿不到可信的 PE/PB 分位序列。
+       「编一个 asOf」和「留空但说明」之间，后者才是诚实的——但留空不能是
+       忘记填，所以必须写 dataGap 讲清缺什么、为什么缺。 */
+    const hasGap = typeof i.dataGap === 'string' && i.dataGap.length >= 20;
+    if (!i.asOf && !hasGap) errors.push(`${tag} 缺少 asOf——估值分位必须标时点（若确实无数据请填 dataGap 说明）`);
 
     const hasPct = ['y3', 'y5', 'y10'].some((w) => typeof i.pePct?.[w] === 'number');
-    if (!hasPct) errors.push(`${tag} 没有任何 PE 分位，ETF 的「估值层」会直接判不合格`);
+    if (!hasPct && !hasGap) {
+      errors.push(`${tag} 没有任何 PE 分位，ETF 的「估值层」会直接判不合格（若确实无数据请填 dataGap 说明）`);
+    }
     for (const w of ['y3', 'y5', 'y10']) {
       const v = i.pePct?.[w];
       if (v != null && (v < 0 || v > 100)) errors.push(`${tag} pePct.${w}=${v} 超出 0–100`);
@@ -431,9 +443,9 @@ const etfs = read('data/etfs.json');
     if (i.inceptionDate != null) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(i.inceptionDate)) {
         errors.push(`${tag} inceptionDate 格式应为 YYYY-MM-DD，实际 ${i.inceptionDate}`);
-      } else if (new Date(i.inceptionDate) > new Date(i.asOf)) {
+      } else if (i.asOf != null && new Date(i.inceptionDate) > new Date(i.asOf)) {
         errors.push(`${tag} inceptionDate ${i.inceptionDate} 晚于 asOf ${i.asOf}`);
-      } else {
+      } else if (i.asOf != null) {
         const age = yearsBetween(i.inceptionDate, i.asOf);
         for (const [w, span] of [['y3', 3], ['y5', 5], ['y10', 10]]) {
           if (typeof i.pePct?.[w] === 'number' && age < span * 0.5) {
@@ -620,6 +632,57 @@ const etfs = read('data/etfs.json');
     // 背离但级别不够触发阈值时，至少要能算出差距
     if (d && d.gap < ETF_DIVERGENCE_GAP) {
       errors.push(`index[${i.id}] metricDivergence 返回了低于阈值的背离，阈值判断有误`);
+    }
+  }
+
+  /* ---- 周期股守卫：这一组不变量防的是「把周期顶部盈利当成永久盈利能力」 ----
+     2026-11 加航运时发现：BDI 年初 +108.8%、中远海控 PE 7.52 倍，
+     如果只看 PE 分位会判「便宜」，而那个便宜来自分母（周期顶部盈利）变大。
+     规则用 cycleGuard 拦这一类，下面五条保证它不会被绕过。 */
+  for (const i of etfs.indices ?? []) {
+    const tag = `index[${i.id}]`;
+    const cyc = i.cyclical;
+
+    // 1. 声明了强周期却没给景气指标 → cycleGuard 拿不到 zone，判定会静默失效
+    if (cyc && cyc.level !== 'none' && !i.cycle) {
+      const explained = (cyc.note?.length ?? 0) >= 40 || typeof i.dataGap === 'string';
+      const msg = `${tag} 声明 cyclical.${cyc.level} 但缺 cycle 景气指标——周期守卫无 zone 可用`;
+      if (explained) warnings.push(`${msg}（已在 note/dataGap 说明原因）`);
+      else errors.push(msg);
+    }
+
+    // 2. 声明了强周期却没给驱动权重 → 无法判断这个指数有几分之几受该变量影响
+    if (cyc && cyc.level === 'strong' && cyc.driverWeight == null) {
+      errors.push(`${tag} 强周期但缺 driverWeight，无法说明敞口纯度`);
+    }
+
+    // 3. 有 cycle 但没声明 cyclical → 有景气数据却不参与判定，等于摆设
+    if (i.cycle && (!cyc || cyc.level === 'none')) {
+      warnings.push(`${tag} 有 cycle 景气指标但未声明 cyclical，该数据不参与任何判定`);
+    }
+
+    // 4. 周期顶/底 + 分位给出方向时必须被判 unclear —— 这是 cycleGuard 的核心承诺
+    const e = entryAssessment(i);
+    const cg = cycleGuard(i);
+    if (cg.kind && e.grade !== 'unclear') {
+      errors.push(
+        `${tag} 周期守卫触发（${cg.kind}）但 entryAssessment 仍给出方向「${e.grade}」——顶/底部的分位不得支撑结论`
+      );
+    }
+
+    // 5. 隐含回报低于门槛时，档位不得是 cheap
+    if (cg.normalized && cg.normalized.impliedReturn < ETF_REQUIRED_RETURN && e.grade === 'cheap') {
+      errors.push(
+        `${tag} 隐含回报 ${cg.normalized.impliedReturn.toFixed(2)}% 低于 ${ETF_REQUIRED_RETURN}% 门槛，却判「偏便宜」`
+      );
+    }
+
+    // 6. 正常化 ROE 与当期 ROE 差距过大时，必须走正常化口径
+    if (cyc?.normalizedRoe != null && i.roe != null && i.roe > cyc.normalizedRoe * (1 + ROE_PEAK_GAP)) {
+      const r = impliedReturn(cyc.normalizedRoe, i.pb ?? 0);
+      if (r == null) {
+        errors.push(`${tag} 当期 ROE 显著高于正常化中枢，但 pb 缺失，无法用正常化口径反推`);
+      }
     }
   }
 
