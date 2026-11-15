@@ -775,6 +775,85 @@ export function percentileReliability(
   return { level, reason: reasons.join('；') };
 }
 
+export interface WindowConflict {
+  long: { window: 'y10' | 'y5'; label: string; value: number };
+  short: { window: 'y3'; label: string; value: number };
+  gap: number;
+  kind: 'pe' | 'pb';
+  reason: string;
+}
+
+/**
+ * 分位窗口分歧——2026-11 看白酒时发现的第三类「分位不可信」。
+ *
+ * percentileReliability 处理的是「样本不可比」（回溯模拟、编制变更）。还有一类更隐蔽：
+ * **样本可比，长窗口却已失去可比性——因为它套住了一个极端泡沫。**
+ *
+ * 中证酒（399987）2026-11-13：PE 十年分位 25.08（看着便宜）、三年分位 76.59（近三年最贵）。
+ * 两个数字都对，矛盾出在 2021 年那一轮：白酒 PE 被推到 50–60 倍，把十年窗口的上界
+ * 抬到了一个大概不会再回去的位置。分母被抬高，今天的 22 倍自然显得「只有历史四分之一」。
+ * 但对 2023 年以后才进场的人，这段历史里从没有过 22 倍以下——三年分位 76.59 才是他
+ * 亲身经历的「贵」。
+ *
+ * 所以规则：长窗口 ≤35 且短窗口 ≥65 时判为分歧，估值层不得判通过。
+ * 这不是数据有错，是「拿哪一段当锚」的选择——而选择本身决定结论，
+ * 就不能再假装它是一个客观分位。
+ */
+export function percentileWindowConflict(idx: EtfIndex | undefined): WindowConflict | null {
+  if (!idx) return null;
+
+  const check = (
+    set: Partial<Record<'y3' | 'y5' | 'y10', number>> | undefined,
+    kind: 'pe' | 'pb'
+  ): WindowConflict | null => {
+    if (!set) return null;
+    const longW = typeof set.y10 === 'number' ? 'y10' : typeof set.y5 === 'number' ? 'y5' : null;
+    if (!longW) return null;
+    const longV = set[longW] as number;
+    const shortV = set.y3;
+    if (typeof shortV !== 'number') return null;
+    if (!(longV <= 35 && shortV >= 65)) return null;
+    const longLabel = longW === 'y10' ? '十年' : '五年';
+    return {
+      long: { window: longW, label: longLabel, value: longV },
+      short: { window: 'y3', label: '三年', value: shortV },
+      gap: shortV - longV,
+      kind,
+      reason: `${longLabel}分位 ${longV.toFixed(0)} 与三年分位 ${shortV.toFixed(
+        0
+      )} 方向相反、差 ${(shortV - longV).toFixed(
+        0
+      )} 个百分点：长窗口的上界被上一轮泡沫里的极端估值抬高了，分位低是分母效应，不是这件东西变便宜了`,
+    };
+  };
+
+  return check(idx.pePct, 'pe') ?? check(idx.pbPct, 'pb');
+}
+
+/**
+ * 隐含派息率 = 股息率 × PE。
+ *
+ * 股息率 = 派息率 ÷ PE 是恒等式，反过来就能从两个已知数里把派息率解出来。
+ * 这有什么用？——高股息叙事最常见的漏洞是「分子滞后于分母」：
+ * 股息率 TTM 的分子是过去 12 个月**实际派发**的现金（按上一年的利润定的），
+ * 分母是当前股价；而 PE TTM 的分母是最近四个季度**已经下滑**的净利润。
+ * 利润先跌，分红后跌，两者时点错配，于是股息率被虚高。
+ *
+ * 中证酒：股息率 4.15%、PE 22.26 → 隐含派息率 92.4%。
+ * 一家公司可以把 90% 的利润分掉，一个行业长期如此是不现实的——那等于不再投入。
+ * 真实的头部酒企派息率在 65–80%，说明 4.15% 里有一块是「用旧利润派、按新价格算」
+ * 的时点差。所以绝对锚（股息率 − 国债 ≥ 2pct）在这里只能算「看起来过了」，
+ * 不能当作「可持续的现金回报」。
+ */
+export function impliedPayoutRatio(idx: EtfIndex | undefined): number | null {
+  if (!idx) return null;
+  const { dividendYield: dy, pe } = idx;
+  if (typeof dy !== 'number' || typeof pe !== 'number' || pe <= 0) return null;
+  return dy * pe;
+}
+
+/** 派息率超过这个水平，股息率就难以持续——分红吃掉利润的同时也吃掉了再投入 */
+export const PAYOUT_CEILING = 80;
 
 export function etfThreeLayer(e: Etf, idx: EtfIndex | undefined, peers?: Etf[]): LayerResult[] {
   const out: LayerResult[] = [];
@@ -851,12 +930,20 @@ export function etfThreeLayer(e: Etf, idx: EtfIndex | undefined, peers?: Etf[]):
     } else {
       const p = v;
       const rel = percentileReliability(idx!, p.window, idx!.asOf);
+      const conflict = percentileWindowConflict(idx);
+      const own = conflict && conflict.kind === p.kind ? conflict : null;
       const tagText =
         rel && rel.level !== 'high' ? `（分位可信度${rel.level === 'low' ? '低' : '中'}）` : '';
       if (p.value <= 35) {
         /* 分位通过但样本不可比：只能算 partial。这不是「不知道」，是「知道它不可比」——
            两者在页面上必须区分，否则会把「样本有问题」当成「数据缺失」，用户会以为补上数据就能解决 */
-        if (rel?.level === 'low') {
+        if (own) {
+          /* 样本够长、也可比，但长窗口里套着一个泡沫：分位低是分母被抬高，不是便宜 */
+          state = 'partial';
+          headline = `${idx!.name} ${p.basis} ${p.value.toFixed(0)} 偏低，但三年分位 ${own.short.value.toFixed(
+            0
+          )} 与之相反${tagText}`;
+        } else if (rel?.level === 'low') {
           state = 'partial';
           headline = `${idx!.name} ${p.basis} ${p.value.toFixed(0)} 通过，但分位样本不可比${tagText}`;
         } else {
@@ -870,7 +957,7 @@ export function etfThreeLayer(e: Etf, idx: EtfIndex | undefined, peers?: Etf[]):
         state = 'fail';
         headline = `${idx!.name} ${p.basis} ${p.value.toFixed(0)}，偏贵${tagText}`;
       }
-      detail = [rel?.reason, idx?.peCaveat].filter(Boolean).join('｜');
+      detail = [own?.reason, rel?.reason, idx?.peCaveat].filter(Boolean).join('｜');
     }
     out.push({
       layer: 2,

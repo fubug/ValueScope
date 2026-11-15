@@ -7,6 +7,7 @@ import {
   etfPending,
   indexPercentile,
   indexValuation,
+  percentileWindowConflict,
   percentileReliability,
   peerFee,
   premiumInFeeYears,
@@ -214,6 +215,29 @@ const divergences = data.indices
         鼠标悬停可以看到具体原因。
       </span>
     </div>
+    {data.indices
+      .map((i) => ({ i, wc: percentileWindowConflict(i) }))
+      .filter((x) => x.wc)
+      .map(({ i, wc }) => (
+        <div class="notice" style="border-color:rgba(245,166,35,.45);margin-top:14px">
+          <strong>
+            {i.name}（{i.code}）的三个分位在打架：{wc!.long.label} {wc!.long.value.toFixed(0)}、{wc!.short.label}{' '}
+            {wc!.short.value.toFixed(0)}，差 {wc!.gap.toFixed(0)} 个百分点且方向相反。
+          </strong>
+          <div class="small" style="margin-top:6px;line-height:1.8">
+            两个数字都是真的，分歧在于<strong>拿哪一段当锚</strong>。{wc!.long.label}窗口里套着上一轮泡沫的极端估值——
+            那段时间把 PE 推到过一个之后大概不会再回去的高度，窗口上界被抬高，今天的 {i.pe} 倍自然显得便宜；
+            但对近年才进场的人来说，这段历史里可能从来没有过这么低的估值，{wc!.short.label}分位{' '}
+            {wc!.short.value.toFixed(0)} 才是他亲身经历的「贵」。
+            规则硬编码：<span class="mono">长窗口 ≤35 且短窗口 ≥65 → 判为窗口分歧，估值层不得判通过</span>。
+            <br />
+            注意这和「样本不够」是两件不同的事：回溯模拟、编制变更那类是<strong>分位算得不对</strong>；
+            这一类是<strong>分位算得对，但没有唯一含义</strong>——换一段窗口，结论就从「便宜」翻成「偏贵」。
+            所以本表不给你一个单数，两个都摆出来。
+          </div>
+        </div>
+      ))}
+
     {data.indices
       .filter((i) => typeof i.pe === 'number' && !(i.pe > 0))
       .map((i) => (

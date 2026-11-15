@@ -15,8 +15,11 @@ import {
   deriveEtfStatus,
   deriveStatus,
   etfThreeLayer,
+  impliedPayoutRatio,
   indexValuation,
+  PAYOUT_CEILING,
   percentileReliability,
+  percentileWindowConflict,
   threeLayer,
   marginOfSafety,
   buyZoneOf,
@@ -279,6 +282,29 @@ const etfs = read('data/etfs.json');
       }
     }
 
+    /* ---- 分位窗口分歧：样本够长，但样本里套着一个泡沫 ----
+       白酒的十年分位 25.08 与三年分位 76.59 同时成立。前者低是因为 2021 年把 PE 推到 50–60 倍，
+       把窗口上界抬到了一个不会再回去的位置。这不是「数据缺失」也不是「样本不可比」，
+       而是「选择哪一段当锚」——选择会决定结论，就必须在 peCaveat 里说清，不能只留一个看起来便宜的数。 */
+    const wc = percentileWindowConflict(i);
+    if (wc && (typeof i.peCaveat !== 'string' || i.peCaveat.length < 120)) {
+      errors.push(`${tag} ${wc.reason}——peCaveat 过短，未交代这处分歧`);
+    }
+
+    /* ---- 隐含派息率：股息率 × PE ----
+       高股息叙事最常见的漏洞是分子滞后于分母：股息率的分子是按上一年利润派发的现金，
+       分母是今天的股价；而 PE 的分母是最近四季度已经下滑的净利润。利润先跌、分红后跌，
+       算出来的股息率就被虚高，利差自然「通过」绝对锚。 */
+    const payout = impliedPayoutRatio(i);
+    if (payout != null && payout > PAYOUT_CEILING) {
+      if (typeof i.peCaveat !== 'string' || !/派息率/.test(i.peCaveat)) {
+        errors.push(
+          `${tag} 隐含派息率 ${payout.toFixed(0)}%（股息率 ${i.dividendYield}% × PE ${i.pe}）超过 ${PAYOUT_CEILING}%，` +
+            `但 peCaveat 没有解释分红可持续性——这个股息率不能当现金回报用`
+        );
+      }
+    }
+
     // 分位背离超过 30pct 时，必须有 roe 才能解释；否则页面会给出「假便宜」的错误暗示
     if (
       typeof i.pePct?.y10 === 'number' &&
@@ -387,6 +413,22 @@ const etfs = read('data/etfs.json');
         errors.push(
           `${tag} 底层指数整体亏损（PE ${idx.pe}），估值层不得判为通过——用 PB 分位说「便宜」就是价值陷阱`
         );
+      }
+    }
+
+    // 分位窗口分歧（长窗口低、短窗口高）时，估值层同样不得判通过：
+    // 长窗口的低分位是「那段历史太贵」，不是「现在便宜」。
+    if (idx) {
+      const wc2 = percentileWindowConflict(idx);
+      if (wc2) {
+        const valLayer2 = etfThreeLayer(e, idx, etfs.etfs)[1];
+        if (valLayer2.state === 'pass') {
+          errors.push(
+            `${tag} 底层指数分位存在窗口分歧（${wc2.long.label} ${wc2.long.value.toFixed(
+              0
+            )} vs ${wc2.short.label} ${wc2.short.value.toFixed(0)}），估值层不得判为通过`
+          );
+        }
       }
     }
   }
