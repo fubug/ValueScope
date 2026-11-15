@@ -1,8 +1,7 @@
 ---
 import Base from '../../layouts/Base.astro';
+import { ENTRY_LABEL } from '../../lib/rules';
 import d from '../../../data/dividend.json';
-import etfsData from '../../../data/etfs.json';
-import { etfThreeLayer, type EtfsFile } from '../../lib/rules';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const data = d;
@@ -13,8 +12,6 @@ const con = data.concentration;
 const bk = data.banks;
 const vd = data.verdict;
 
-const idx = (etfsData as unknown as EtfsFile).indices.find((i) => i.id === 'csi-divlow');
-const layers = idx ? etfThreeLayer((etfsData as unknown as EtfsFile).etfs.find((e) => e.code === '512890')!, idx, (etfsData as unknown as EtfsFile).etfs) : [];
 
 const pctColor = (p: number) =>
   p <= 15 ? 'var(--cheap)' : p <= 35 ? 'var(--fair)' : p <= 65 ? 'var(--muted)' : 'var(--expensive)';
@@ -254,15 +251,15 @@ const STATE_TEXT = { pass: '通过', partial: '部分', fail: '未过' } as cons
   <!-- 六、判定 -->
   <div class="section-head">
     <h2>六、判定与边界</h2>
-    <span class="hint">三层校验 + 什么情况下这个结论会变</span>
+    <span class="hint">三个问题 + 什么情况下这个结论会变</span>
   </div>
 
   <div class="card">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-      <span class={`badge ${vd.status}`} style="font-size:13px;padding:6px 12px">
-        {vd.status === 'watch' ? '需观察' : vd.status === 'buy' ? '可配置' : '回避'}
+      <span class={`badge ${vd.entryGrade === 'expensive' ? 'expensive' : vd.entryGrade === 'cheap' ? 'cheap' : 'fair'}`} style="font-size:13px;padding:6px 12px">
+        入场分 · {ENTRY_LABEL[vd.entryGrade as 'cheap' | 'fair' | 'expensive' | 'unclear']}
       </span>
-      <span class="small muted">三层里两层通过、一层未过——卡在估值，不在成本也不在工具</span>
+      <span class="small muted">这个判定属于指数，不属于某只 ETF——换哪只工具都不会改变「它贵」这件事</span>
     </div>
     <div style="display:flex;flex-direction:column;gap:0">
       {vd.layers.map((l) => (

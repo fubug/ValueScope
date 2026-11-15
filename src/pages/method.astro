@@ -156,56 +156,92 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
 
   <div class="section-head">
-    <h2>五、ETF 为什么用另一套尺子</h2>
-    <span class="hint">同一个指数有多个 ETF，先比成本，再谈估值</span>
+    <h2>五、ETF：把「买哪只」和「什么时候买」拆开</h2>
+    <span class="hint">这两件事必须分开算——合成一个词，就等于把答案藏起来</span>
   </div>
   <div class="card">
     <p class="muted">
       个股的「安全边际」来自价格低于价值，可以等。ETF 不能照搬，因为 ETF 的额外收益有两个来源，
       重要程度完全不同：一是<strong>底层指数变便宜</strong>，这要等市场；二是<strong>你不再为它付溢价</strong>，这是当下就能执行的。
-      后者是确定性的，所以放在第一层。
+    </p>
+    <p class="muted">
+      问题在于，ETF 要回答的其实是三个独立的问题：<strong>这个 beta 要不要</strong>（跨指数比较）、
+      <strong>现在是不是时候</strong>（指数自身的历史分位）、<strong>买哪只工具</strong>（同指数内比较费率与流动性）。
+      2026-11 之前，这三件事被 AND 成「可配置 / 需观察 / 回避」三个词，结果 25 只里 22 只判「需观察」——
+      而同样是「需观察」，510300（1870 亿规模、0.20% 费率、日均成交 34.89 亿，全表工具最好）和
+      561560（成交 0.42 亿、费率是最低档的 3 倍）显示同一个词。
+      <strong>用户看到同一个词，要做相反的动作。</strong>
     </p>
     <p class="muted" style="margin-bottom:0">
-      最典型的例子：标普500LOF（161125）在 2026-11-06 收 3.182 元、净值 2.9991 元，溢价 6.10%，
-      且自 2026-03-19 起暂停申购。这意味着「按净值买入」的通道已经关闭，场内 6% 的溢价没有套利机制去平抑它。
-      把 6.10% 换算成费率——除以同类最低综合费率 0.80%/年——等于 <strong>7.6 年</strong>的持有成本。
-      为了省每年 0.8% 去付掉 6.1%，要 7.6 年才回本。这个换算比任何估值分位都直接。
+      更严重的是，「可配置」被指数层锁死了：估值判的是指数，同指数下所有 ETF 共享同一结论，
+      所以只要指数贵或说不清，工具再好也永远不可能可配置。
+      于是「可配置」衡量的是<strong>哪个指数便宜</strong>，不是<strong>哪只 ETF 好</strong>。
     </p>
   </div>
 
   <div class="card" style="overflow-x:auto;margin-top:14px">
     <table>
       <thead>
-        <tr><th>层</th><th>个股判据</th><th>ETF 判据</th><th>为什么换</th></tr>
+        <tr><th>维度</th><th>问的是</th><th>比较范围</th><th>输出</th></tr>
       </thead>
       <tbody>
         <tr>
-          <td><strong>①</strong></td>
-          <td class="small">股息率 − 10Y国债 ≥ 2pct，派息率 &lt; 70%</td>
-          <td class="small">折溢价 ≤ 1%（QDII 2%），综合费率 ≤ 1.0%/年</td>
-          <td class="small">ETF 没有「股息」这个抓手，但它有另一个确定性损耗：过路费</td>
+          <td><strong>工具分</strong></td>
+          <td class="small">同指数里，这只值不值得买</td>
+          <td class="small">同指数内（不含任何估值判断）</td>
+          <td class="small">同类最优 / 竞争档 / 落后，附排名</td>
         </tr>
         <tr>
-          <td><strong>②</strong></td>
-          <td class="small">安全边际 ≥ 确定性对应门槛</td>
-          <td class="small">底层指数 PE 分位 ≤ 35 通过 / 35–65 中性 / &gt;65 偏贵</td>
-          <td class="small">ETF 不分好坏，只分跟谁；贵不贵看指数，不看 ETF 价格</td>
-        </tr>
-        <tr>
-          <td><strong>③</strong></td>
-          <td class="small">反证条件是否已触发</td>
-          <td class="small">申购状态 + 日均成交额</td>
-          <td class="small">个股的硬伤是经营恶化；ETF 的硬伤是「买不到」</td>
+          <td><strong>入场分</strong></td>
+          <td class="small">这个指数现在贵不贵</td>
+          <td class="small">指数自身历史</td>
+          <td class="small">便宜 / 中性 / 偏贵 / <strong>说不清</strong></td>
         </tr>
       </tbody>
     </table>
-    <p class="small dim" style="margin:14px 0 0">
-      状态派生也不同：ETF 不设「便宜但不买」，因为它的复合失败通常是「指数便宜但工具贵」，等溢价收敛即可，归入需观察；
-      只有<strong>两项以上明确不合格</strong>才判回避。这条规则是为了区分「缺数据」和「数据不合格」——
-      快照里没取到盘中折溢价是常态，不能因为不知道就判回避，那等于用缺失值做空头结论。
+    <p class="small dim" style="margin:14px 0 0;line-height:1.8">
+      工具分的判据只有两条，且都是「每次交易/每年」都要付的东西：
+      费率是否处于同指数最低档、日均成交是否够（≥0.5 亿）。
+      费率比最低档高、但差幅未达 0.2pct 或未到 1.5 倍 → 竞争档；差幅达到 → 落后。
+      <strong>规模与成交数据超过 60 天视为未取得</strong>——陈旧和缺失的风险一样，都不能当合格用。
+      这里没有加权求和：费率和流动性谁重谁轻取决于你打算持有多久，不该由规则替你定。
     </p>
   </div>
 
+  <div class="card" style="overflow-x:auto;margin-top:14px">
+    <h3 style="margin-top:0">两维组合出六个动作</h3>
+    <table>
+      <thead>
+        <tr><th>工具分</th><th>入场分</th><th>动作</th><th>含义</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="small">最优 / 竞争</td><td class="small">便宜</td><td><span class="badge cheap">可配置</span></td><td class="small">两件事同时成立</td></tr>
+        <tr><td class="small">最优 / 竞争</td><td class="small">中性 / 偏贵 / 说不清</td><td><span class="badge fair">等时机</span></td><td class="small">工具选对了，等指数，不用换产品</td></tr>
+        <tr><td class="small">落后</td><td class="small">便宜 / 中性，且有更好替代</td><td><span class="badge" style="color:var(--accent);border-color:rgba(110,168,254,.3)">换工具</span></td><td class="small"><strong>今天就能做，不需要等任何东西</strong></td></tr>
+        <tr><td class="small">落后</td><td class="small">偏贵 / 说不清 / 无替代</td><td><span class="badge unknown">不参与</span></td><td class="small">两头都不占</td></tr>
+        <tr><td class="small">—</td><td class="small">溢价超容忍度</td><td><span class="badge expensive">回避</span></td><td class="small">与指数贵贱无关的确定性损失</td></tr>
+        <tr><td class="small">—</td><td class="small">关键数据缺失</td><td><span class="badge unknown">待核</span></td><td class="small">风险未知，不等于风险可控</td></tr>
+      </tbody>
+    </table>
+    <p class="small dim" style="margin:14px 0 0;line-height:1.8">
+      <strong>六件事的补救方式完全不同</strong>，这是必须分开记录的理由：
+      「换工具」今天就能做；「等时机」不用换产品；「待核」需要补一次数据（盘中 IOPV、近 20 日成交）；
+      只有「不参与」和「回避」是真的没有动作。旧版把后四类全部压成「需观察」，25 只里 22 只不可区分。
+    </p>
+    <p class="small dim" style="margin:10px 0 0;line-height:1.8">
+      CI 还留了一条哨兵：<strong>任何单一动作占比超过 60% 就报警</strong>。
+      占比过高说明模型又塌回一个筐里了——这正是这次重构要防的事。
+    </p>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <p class="muted" style="margin:0">
+      最典型的例子：标普500LOF（161125）在 2026-11-06 收 3.182 元、净值 2.9991 元，溢价 6.10%，
+      且自 2026-03-19 起暂停申购。这意味着「按净值买入」的通道已经关闭，场内 6% 的溢价没有套利机制去平抑它。
+      把 6.10% 换算成费率——除以同类最低综合费率 0.80%/年——等于 <strong>7.6 年</strong>的持有成本。
+      <strong>这个换算比任何估值分位都直接</strong>，所以「溢价超容忍度」是一票否决，不参与两维矩阵。
+    </p>
+  </div>
   <div class="card" style="margin-top:14px">
     <h3 style="margin-top:0">还没解决的两件事</h3>
     <ul class="clean" style="padding-left:20px;line-height:1.9;margin:0">
@@ -230,7 +266,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
       「这个分位不可能是真实统计出来的」；<br />
       发布不足分位窗口但超过一半 → 必须在 <span class="mono">peCaveat</span> 里说明哪一段是回溯模拟，否则校验失败；<br />
       存在 3 年内的编制变更 → 分位可信度降为「中」，页面标注；两者叠加 → 估值层即使分位通过也只判「部分通过」，
-      整体结论卡在需观察，不会因为「看起来便宜」就放行。
+      入场分不给方向，不会因为「看起来便宜」就放行。
     </div>
     <p class="small dim" style="margin:10px 0 0">
       这条规则与个股的「确定性分级」同源：<strong>证据的强度决定结论的上限</strong>。

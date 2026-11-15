@@ -12,9 +12,13 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
-  deriveEtfStatus,
   deriveStatus,
-  etfThreeLayer,
+  etfVerdict,
+  entryAssessment,
+  toolAssessment,
+  toolRanking,
+  ACTION_LABEL,
+  ETF_DATA_STALE_DAYS,
   impliedPayoutRatio,
   indexValuation,
   PAYOUT_CEILING,
@@ -218,7 +222,9 @@ if ((stocks.stocks ?? []).length === 0) warnings.push('个股列表为空，页�
 const etfs = read('data/etfs.json');
 {
   const ETF_TYPES = ['QDII-LOF', 'QDII-ETF', 'ETF', 'LOF'];
-  const etfTally = { buy: 0, watch: 0, avoid: 0 };
+  /* 按「动作」计数而不是按「状态」：状态只有一个词，动作才有下一步。
+     同时统计单一动作占比——占比过高说明模型又塌回一个筐里了。 */
+  const etfTally = { buy: 0, switch: 0, wait: 0, skip: 0, avoid: 0, probe: 0 };
   globalThis.__etfTally = etfTally;
   const SUBS = ['open', 'limited', 'suspended'];
   const indexIds = new Set();
@@ -418,40 +424,110 @@ const etfs = read('data/etfs.json');
       }
     }
 
-    // 状态与派生结果对齐（ETF 的 status 不落库，这里只校验派生结果本身不会异常）
+    // 派生结果与其内部一致性
     const idx = (etfs.indices ?? []).find((i) => i.id === e.indexId);
-    const derived = deriveEtfStatus(e, idx, etfs.etfs);
-    if (!['buy', 'watch', 'avoid'].includes(derived)) {
-      errors.push(`${tag} 派生状态异常：${derived}`);
+    const v = etfVerdict(e, idx, etfs.etfs, etfs.meta?.snapshot);
+    if (!(v.action in etfTally)) {
+      errors.push(`${tag} 派生动作异常：${v.action}`);
     }
-    etfTally[derived] += 1;
-    if (derived === 'buy' && e.premium == null) {
-      errors.push(`${tag} 被判为可配置，但溢价未取得——成本层不可能通过`);
+    etfTally[v.action] += 1;
+
+    /* ---- 两维模型的核心不变量 ----
+       这几条不是「风格要求」，每一条都对应一次真实误判。 */
+
+    // ① 可配置必须真的两件事同时成立。矩阵写错、或数据把「说不清」当成「便宜」，都会在这里暴露。
+    if (v.action === 'buy') {
+      if (v.entry.grade !== 'cheap') {
+        errors.push(`${tag} 判为可配置，但入场分是 ${v.entry.grade}——工具好不等于时机到，两件事不能合并`);
+      }
+      if (v.tool.grade === 'lagging') {
+        errors.push(`${tag} 判为可配置，但工具分是落后——同指数有更便宜/更好买的同款`);
+      }
+      if (e.premium == null) errors.push(`${tag} 判为可配置，但溢价未取得——当刻成本未知不能算可配置`);
     }
 
-    // 底层指数整体亏损时，PB 分位再低也不能作为「便宜」的证据：净资产正被亏损侵蚀。
-    if (typeof idx?.pe === 'number' && idx.pe <= 0) {
-      const valLayer = etfThreeLayer(e, idx, etfs.etfs)[1];
-      if (valLayer.state === 'pass') {
-        errors.push(
-          `${tag} 底层指数整体亏损（PE ${idx.pe}），估值层不得判为通过——用 PB 分位说「便宜」就是价值陷阱`
-        );
+    // ② 回避只能由「溢价无法回归」触发。若它同时是「指数贵」，那是择时问题，不该叫回避。
+    if (v.action === 'avoid' && v.cost !== 'high') {
+      errors.push(`${tag} 判为回避，但溢价 ${e.premium}% 未超容忍度——回避的语义是工具硬伤，不是估值偏贵`);
+    }
+
+    // ③ 待核必须真的缺了「决定能不能买」的那一项，否则就是拿待核掩盖结论。
+    if (v.action === 'probe') {
+      const missing = e.premium == null || e.turnover == null || e.fee?.total == null;
+      if (!missing) errors.push(`${tag} 判为待核，但折溢价/成交/费率都齐——待核不能用来回避判断`);
+    }
+
+    // ④ 落后档必须给出可验证的落后原因，否则无法复核。
+    if (v.tool.grade === 'lagging' && v.tool.feeRank !== 'high' && v.tool.liq !== 'thin') {
+      errors.push(`${tag} 工具分判为落后，但既不是费率落后也不是流动性不足——落后必须有依据`);
+    }
+
+    // ⑤ 换工具必须真的有替代品，且替代品本身是同类最优。空头支票比不给建议更糟。
+    if (v.action === 'switch') {
+      const alt = etfs.etfs.find((p) => p.code === v.tool.betterAlternative);
+      if (!alt) {
+        errors.push(`${tag} 建议换工具，但 betterAlternative 为空或不在表内`);
+      } else if (toolAssessment(alt, etfs.etfs, etfs.meta?.snapshot).grade !== 'first') {
+        errors.push(`${tag} 建议换到 ${alt.code}，但它自己也不是同类最优`);
+      }
+      if (v.entry.grade !== 'cheap' && v.entry.grade !== 'fair') {
+        errors.push(`${tag} 建议换工具，但入场分是 ${v.entry.grade}——指数没到位时换工具没有意义`);
       }
     }
 
-    // 分位窗口分歧（长窗口低、短窗口高）时，估值层同样不得判通过：
-    // 长窗口的低分位是「那段历史太贵」，不是「现在便宜」。
-    if (idx) {
-      const wc2 = percentileWindowConflict(idx);
-      if (wc2) {
-        const valLayer2 = etfThreeLayer(e, idx, etfs.etfs)[1];
-        if (valLayer2.state === 'pass') {
-          errors.push(
-            `${tag} 底层指数分位存在窗口分歧（${wc2.long.label} ${wc2.long.value.toFixed(
-              0
-            )} vs ${wc2.short.label} ${wc2.short.value.toFixed(0)}），估值层不得判为通过`
-          );
-        }
+    // ⑥ 估值证据链有一环不可靠，入场分就不能给方向。这条挡的是「用不可比的分位说便宜」。
+    if (v.entry.grade === 'cheap' || v.entry.grade === 'expensive') {
+      if (v.entry.blocks.length > 0) {
+        errors.push(`${tag} 入场分给了方向（${v.entry.grade}），但证据链有缺口：${v.entry.blocks.join('；')}`);
+      }
+      if (v.entry.kind === 'pb') {
+        errors.push(`${tag} 入场分给了方向，但用的是 PB 替代尺——PE 不可用时就无法验证「便宜」`);
+      }
+    }
+
+    // ⑦ 负 PE 的指数不可能「便宜」：PB 分位低只说明净资产还没被亏完。
+    if (typeof idx?.pe === 'number' && idx.pe <= 0 && v.entry.grade === 'cheap') {
+      errors.push(`${tag} 底层指数整体亏损（PE ${idx.pe}），入场分不得判为便宜——用 PB 分位说便宜就是价值陷阱`);
+    }
+
+    // ⑧ 数据陈旧不能当合格：陈旧和缺失的风险一样，都是「没量出来」。
+    //    只查成交额——它是「买不进/卖不出」的直接证据，也是唯一进工具分的时点量。
+    if (e.turnoverAsOf && etfs.meta?.snapshot) {
+      const days = (new Date(etfs.meta.snapshot) - new Date(e.turnoverAsOf)) / 864e5;
+      if (days > ETF_DATA_STALE_DAYS && v.tool.grade === 'first') {
+        errors.push(
+          `${tag} 成交额数据是 ${e.turnoverAsOf}（${Math.round(days)} 天前），却判为同类最优——陈旧数据不能支撑「最优」`
+        );
+      }
+    }
+  }
+
+  /* ---- 组级不变量：同一指数内排名必须唯一且连续 ---- */
+  for (const i of etfs.indices ?? []) {
+    const members = (etfs.etfs ?? []).filter((e) => e.indexId === i.id);
+    if (members.length < 2) continue;
+    const ranked = toolRanking(members[0], etfs.etfs, etfs.meta?.snapshot);
+    const seen = new Set();
+    for (const p of ranked) {
+      if (seen.has(p.code)) errors.push(`index[${i.id}] 工具排名出现重复：${p.code}`);
+      seen.add(p.code);
+    }
+    if (seen.size !== members.length) {
+      errors.push(`index[${i.id}] 工具排名漏了产品：${members.length} 只只排出 ${seen.size} 个位置`);
+    }
+  }
+
+  /* ---- 区分度检查：单一动作占比过高，说明模型又塌回一个筐里 ----
+     2026-11 审计时 22/25 判「需观察」，占 88%，那个状态词同时表示
+     「工具最好但指数贵」和「指数便宜但工具差」——用户看到同一个词要做相反的事。
+     这条是那次审计留下的哨兵：占比超过 60% 就报警。 */
+  const total = (etfs.etfs ?? []).length;
+  if (total >= 10) {
+    for (const [k, n] of Object.entries(etfTally)) {
+      if (n / total > 0.6) {
+        warnings.push(
+          `ETF 动作「${ACTION_LABEL[k]}」占 ${n}/${total}（${((n / total) * 100).toFixed(0)}%）——单一动作占比过高，模型可能已经失去区分度`
+        );
       }
     }
   }
@@ -569,7 +645,9 @@ if (rf != null) {
   );
   if (globalThis.__etfTally) {
     const t2 = globalThis.__etfTally;
-    console.log(`ETF 三层：可配置 ${t2.buy} · 需观察 ${t2.watch} · 回避 ${t2.avoid}`);
+    console.log(
+      `ETF 两维：可配置 ${t2.buy} · 换工具 ${t2.switch} · 等时机 ${t2.wait} · 不参与 ${t2.skip} · 回避 ${t2.avoid} · 待核 ${t2.probe}`
+    );
   }
   console.log(
     `要求折价：高确定性 -${(REQUIRED_DISCOUNT.high * 100).toFixed(0)}% · 中 -${(

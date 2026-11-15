@@ -737,6 +737,8 @@ export interface PctReliability {
   reason: string;
 }
 
+type PctSet = { y3?: number; y5?: number; y10?: number };
+
 const YEARS = (from: string, to: string) =>
   (new Date(to).getTime() - new Date(from).getTime()) / (365.25 * 864e5);
 
@@ -839,7 +841,7 @@ export function percentileWindowConflict(idx: EtfIndex | undefined): WindowConfl
     };
   };
 
-  return check(idx.pePct, 'pe') ?? check(idx.pbPct, 'pb');
+  return check(idx.pePct as PctSet, 'pe') ?? check(idx.pbPct as PctSet, 'pb');
 }
 
 /**
@@ -910,188 +912,366 @@ export function peSourceConflict(idx: EtfIndex | undefined): PeSourceConflict | 
   };
 }
 
-export function etfThreeLayer(e: Etf, idx: EtfIndex | undefined, peers?: Etf[]): LayerResult[] {
-  const out: LayerResult[] = [];
-  const limit = premiumLimit(e);
+/* ============================================================
+ * 两维模型：工具分 / 入场分
+ * ------------------------------------------------------------
+ * 2026-11 审计发现旧的三层模型有一个结构性缺陷：它把三件不同的事
+ * （这个 beta 要不要、现在是不是时候、买哪只工具）AND 成了一个状态词。
+ * 结果 25 只里 22 只判「需观察」，而同样是「需观察」，
+ * 510300（1870 亿、0.20%、成交 34.89 亿，全表工具最好）与
+ * 561560（成交 0.42 亿、费率是最低档 3 倍）显示同一个词——用户要做相反的动作。
+ *
+ * 更严重的是「可配置」被指数层锁死：估值层判的是指数，同指数下所有 ETF
+ * 共享同一结论，所以只要指数贵或说不清，工具再好也永远不可能可配置。
+ * 于是「可配置」衡量的是「哪个指数便宜」，不是「哪只 ETF 好」。
+ *
+ * 拆开之后：
+ *   工具分（只在同指数内比较）→ 回答了「买哪只」：同类最优 / 竞争档 / 落后
+ *   入场分（指数自身属性）    → 回答了「现在买不买」：便宜 / 中性 / 偏贵 / 说不清
+ * 两者正交，组合出六个动作，每个动作对应一句能执行的话。
+ * ============================================================ */
 
-  /* --- ① 成本层 --- */
-  {
-    let state: CheckState;
-    let headline: string;
-    const feeYears = premiumInFeeYears(e);
-    const peer = peerFee(e, peers);
-    if (e.premium == null) {
-      state = 'partial';
-      headline = '缺折溢价数据，成本无法验证';
-    } else if (e.premium > limit) {
-      state = 'fail';
-      headline = `溢价 ${e.premium.toFixed(2)}%，超过 ${limit}% 容忍度${
-        feeYears != null ? `，等于先付 ${feeYears.toFixed(1)} 年费率` : ''
-      }`;
-    } else if (e.fee.total == null) {
-      state = 'partial';
-      headline = `溢价 ${e.premium.toFixed(2)}% 在容忍度内，但费率未取得`;
-    } else if (e.fee.total > ETF_FEE_MAX) {
-      state = 'partial';
-      headline = `溢价 ${e.premium.toFixed(2)}% 尚可，但费率 ${e.fee.total}% 偏高`;
-    } else if (peer && e.fee.total - peer.min >= PEER_FEE_GAP && e.fee.total >= peer.min * PEER_FEE_RATIO) {
-      /* 绝对费率合格，但同指数有更便宜的同款产品 */
-      state = 'partial';
-      headline = `溢价 ${e.premium.toFixed(2)}% 尚可，但费率 ${e.fee.total}% 是同指数最低 ${peer.min}% 的 ${peer.ratio.toFixed(1)} 倍`;
+export type ToolGrade = 'first' | 'competitive' | 'lagging';
+export type FeeRank = 'min' | 'near' | 'high' | 'only' | 'unknown';
+export type LiqState = 'ok' | 'thin' | 'unknown';
+export type CostState = 'ok' | 'high' | 'unknown';
+export type EntryGrade = 'cheap' | 'fair' | 'expensive' | 'unclear';
+export type EtfAction = 'buy' | 'switch' | 'wait' | 'skip' | 'avoid' | 'probe';
+
+export const ACTION_LABEL: Record<EtfAction, string> = {
+  buy: '可配置',
+  switch: '换工具',
+  wait: '等时机',
+  skip: '不参与',
+  avoid: '回避',
+  probe: '待核',
+};
+
+export const ACTION_HINT: Record<EtfAction, string> = {
+  buy: '工具是同类最优，指数也不贵——两件事同时成立，可以执行',
+  switch: '指数已经到位，但这只不是同指数最优——换一只立刻能做，不用等',
+  wait: '工具选对了，时机没到——挂着等指数，不需要换产品',
+  skip: '两头都不占：工具不是最优，指数也不便宜或说不清',
+  avoid: '工具本身有硬伤（溢价无法回归），与指数贵贱无关',
+  probe: '决定能不能买的那项数据没拿到——风险未知，不等于风险可控',
+};
+
+export const ACTION_TONE: Record<EtfAction, string> = {
+  buy: 'cheap',
+  switch: 'accent',
+  wait: 'fair',
+  skip: 'dim',
+  avoid: 'expensive',
+  probe: 'unknown',
+};
+
+export const TOOL_LABEL: Record<ToolGrade, string> = {
+  first: '同类最优',
+  competitive: '竞争档',
+  lagging: '落后',
+};
+
+export const ENTRY_LABEL: Record<EntryGrade, string> = {
+  cheap: '便宜',
+  fair: '中性',
+  expensive: '偏贵',
+  unclear: '说不清',
+};
+
+const TOOL_ORDER: Record<ToolGrade, number> = { first: 0, competitive: 1, lagging: 2 };
+
+/** 规模/成交数据超过这么多天就算陈旧——陈旧和缺失的风险是一样的，都不能当合格用 */
+export const ETF_DATA_STALE_DAYS = 60;
+
+const daysBetween = (from: string, to: string) =>
+  (new Date(to).getTime() - new Date(from).getTime()) / 864e5;
+
+function feeRankOf(e: Etf, peer: ReturnType<typeof peerFee>): FeeRank {
+  const total = e.fee?.total ?? null;
+  if (total == null) return 'unknown';
+  if (total > ETF_FEE_MAX) return 'high';
+  if (!peer) return 'only';
+  if (Math.abs(total - peer.min) < 1e-9) return 'min';
+  if (total - peer.min >= PEER_FEE_GAP && total >= peer.min * PEER_FEE_RATIO) return 'high';
+  return 'near';
+}
+
+function liqOf(e: Etf, refDate?: string): LiqState {
+  if (e.turnover == null) return 'unknown';
+  if (refDate && e.turnoverAsOf && daysBetween(e.turnoverAsOf, refDate) > ETF_DATA_STALE_DAYS) {
+    return 'unknown';
+  }
+  return e.turnover < ETF_TURNOVER_MIN ? 'thin' : 'ok';
+}
+
+function gradeOf(e: Etf, peer: ReturnType<typeof peerFee>, refDate?: string): ToolGrade {
+  const fr = feeRankOf(e, peer);
+  const liq = liqOf(e, refDate);
+  /* 费率落后或流动性不足，任一条就够判落后：这两项都是「每年/每次都付」的损耗 */
+  if (fr === 'high' || liq === 'thin') return 'lagging';
+  /* 费率未知不等于合格，但也不该直接算落后——归入竞争档，由动作层强制待核 */
+  if (fr === 'unknown') return 'competitive';
+  if (liq === 'unknown') return 'competitive';
+  if (fr === 'min' || fr === 'only') return 'first';
+  return 'competitive';
+}
+
+export interface ToolAssessment {
+  grade: ToolGrade;
+  feeRank: FeeRank;
+  liq: LiqState;
+  peers: ReturnType<typeof peerFee>;
+  /** 同指数内更有资格被买的产品（同类最优里费率最低、流动性最好的那只），用于「换工具」 */
+  betterAlternative: string | null;
+  rank: number;
+  total: number;
+  headline: string;
+  notes: string[];
+}
+
+/** 同指数内的工具排名：先按档位，再按费率升序、成交额降序。字典序，不是加权求和 */
+export function toolRanking(e: Etf, peers?: Etf[], refDate?: string): Etf[] {
+  const pool = (peers ?? [e]).filter((p) => p.indexId === e.indexId);
+  if (!pool.some((p) => p.code === e.code)) pool.push(e);
+  return [...pool].sort((a, b) => {
+    const ga = gradeOf(a, peerFee(a, pool), refDate);
+    const gb = gradeOf(b, peerFee(b, pool), refDate);
+    if (TOOL_ORDER[ga] !== TOOL_ORDER[gb]) return TOOL_ORDER[ga] - TOOL_ORDER[gb];
+    const fa = a.fee.total ?? 99;
+    const fb = b.fee.total ?? 99;
+    if (fa !== fb) return fa - fb;
+    return (b.turnover ?? 0) - (a.turnover ?? 0);
+  });
+}
+
+export function toolAssessment(e: Etf, peers?: Etf[], refDate?: string): ToolAssessment {
+  const pool = (peers ?? [e]).filter((p) => p.indexId === e.indexId);
+  if (!pool.some((p) => p.code === e.code)) pool.push(e);
+  const peer = peerFee(e, pool);
+  const fr = feeRankOf(e, peer);
+  const liq = liqOf(e, refDate);
+  const grade = gradeOf(e, peer, refDate);
+  const ordered = toolRanking(e, pool, refDate);
+  const rank = ordered.findIndex((p) => p.code === e.code) + 1;
+  const better = ordered.find((p) => p.code !== e.code && gradeOf(p, peerFee(p, pool), refDate) === 'first');
+
+  const notes: string[] = [];
+  if (fr === 'only') notes.push(`同指数只有 ${pool.length} 只产品，费率没有同类可比——通过不是因为便宜，是因为别无选择`);
+  if (fr === 'unknown') notes.push('费率未取得，无法与同类比较');
+  if (liq === 'unknown') notes.push('日均成交未取得或已陈旧，流动性无法验证');
+  if (liq === 'thin' && fr === 'min') notes.push('费率是最低档，但成交额低于下限——省下的年费可能被滑点吃回去');
+
+  let headline: string;
+  if (grade === 'first') {
+    headline =
+      fr === 'only'
+        ? `费率 ${e.fee.total ?? '—'}%（同指数仅此一只），日均成交 ${e.turnover ?? '—'} 亿`
+        : `费率 ${e.fee.total}% 是同指数最低档，日均成交 ${e.turnover ?? '—'} 亿`;
+  } else if (grade === 'competitive') {
+    headline =
+      fr === 'unknown'
+        ? `费率未取得，成交 ${e.turnover ?? '—'} 亿——无法判断是否落后`
+        : `费率 ${e.fee.total}%，高于同指数最低 ${peer?.min}% 但差距未达相对锚，成交 ${e.turnover ?? '—'} 亿`;
+  } else {
+    if (fr === 'high' && liq === 'thin') {
+      headline = `费率 ${e.fee.total}% 是同指数最低 ${peer?.min}% 的 ${peer?.ratio.toFixed(1)} 倍，成交仅 ${e.turnover} 亿`;
+    } else if (fr === 'high') {
+      headline = `费率 ${e.fee.total}% 是同指数最低 ${peer?.min}% 的 ${peer?.ratio.toFixed(1)} 倍`;
     } else {
-      state = 'pass';
-      headline = `溢价 ${e.premium.toFixed(2)}%，综合费率 ${e.fee.total}%`;
+      headline = `日均成交 ${e.turnover} 亿，低于 ${ETF_TURNOVER_MIN} 亿下限，滑点风险`;
     }
-    const peerText = peer
-      ? `｜同指数 ${peer.count} 只可比产品中最低 ${peer.min}%/年（${peer.codes.join('、')}）${
-          peer.ratio > 1 ? `，本只为其 ${peer.ratio.toFixed(1)} 倍` : '，本只即最低档'
-        }`
-      : '';
-    out.push({
-      layer: 1,
-      name: '成本层：溢价 + 费率',
-      state,
-      headline,
-      detail: `${e.premiumNote}｜费率：${e.fee.note}${peerText}`,
-    });
   }
 
-  /* --- ② 估值层 --- */
-  {
-    const v = indexValuation(idx);
-    let state: CheckState;
-    let headline: string;
-    let detail: string;
-    if (!v) {
-      state = 'fail';
-      headline = typeof idx?.pe === 'number' && idx.pe <= 0
-        ? '指数整体亏损，且没有 PB 分位可用——估值层无从判断'
-        : '底层指数缺估值分位';
-      detail = idx?.peCaveat ?? '未取得该指数的口径说明';
-    } else if (v.kind === 'pb') {
-      /* PE 不可用（多为整体亏损）。PB 分位低只能证明「资产被折价」，
-         不能证明「便宜」——盈利为负时净资产在被侵蚀，这是价值陷阱的形态，不是安全边际。
-         所以这里最高只给 partial：数据齐全，但便宜无法验证。 */
-      const rel = percentileReliability(idx!, v.window, idx!.asOf);
-      const tagText = rel && rel.level !== 'high' ? `（分位可信度${rel.level === 'low' ? '低' : '中'}）` : '';
-      if (v.value > 65) {
-        state = 'fail';
-        headline = `${idx!.name} PE 不可用，改用 ${v.basis} ${v.value.toFixed(0)}%，资产也不便宜${tagText}`;
-      } else {
-        state = 'partial';
-        headline = `${idx!.name} PE 不可用，改用 ${v.basis} ${v.value.toFixed(0)}%，资产折价但便宜无法验证${tagText}`;
-      }
-      detail = [v.fallbackReason, v.equityErosion, rel?.reason, idx?.peCaveat].filter(Boolean).join('｜');
-    } else {
-      const p = v;
-      const rel = percentileReliability(idx!, p.window, idx!.asOf);
-      const conflict = percentileWindowConflict(idx);
-      const own = conflict && conflict.kind === p.kind ? conflict : null;
-      const tagText =
-        rel && rel.level !== 'high' ? `（分位可信度${rel.level === 'low' ? '低' : '中'}）` : '';
-      if (p.value <= 35) {
-        /* 分位通过但样本不可比：只能算 partial。这不是「不知道」，是「知道它不可比」——
-           两者在页面上必须区分，否则会把「样本有问题」当成「数据缺失」，用户会以为补上数据就能解决 */
-        if (own) {
-          /* 样本够长、也可比，但长窗口里套着一个泡沫：分位低是分母被抬高，不是便宜 */
-          state = 'partial';
-          headline = `${idx!.name} ${p.basis} ${p.value.toFixed(0)} 偏低，但三年分位 ${own.short.value.toFixed(
-            0
-          )} 与之相反${tagText}`;
-        } else if (rel?.level === 'low') {
-          state = 'partial';
-          headline = `${idx!.name} ${p.basis} ${p.value.toFixed(0)} 通过，但分位样本不可比${tagText}`;
-        } else {
-          state = 'pass';
-          headline = `${idx!.name} ${p.basis} ${p.value.toFixed(0)}，偏便宜${tagText}`;
-        }
-      } else if (p.value <= 65) {
-        state = 'partial';
-        headline = `${idx!.name} ${p.basis} ${p.value.toFixed(0)}，中性${tagText}`;
-      } else {
-        state = 'fail';
-        headline = `${idx!.name} ${p.basis} ${p.value.toFixed(0)}，偏贵${tagText}`;
-      }
-      detail = [own?.reason, rel?.reason, idx?.peCaveat].filter(Boolean).join('｜');
+  return {
+    grade,
+    feeRank: fr,
+    liq,
+    peers: peer,
+    betterAlternative: better?.code ?? null,
+    rank,
+    total: ordered.length,
+    headline,
+    notes,
+  };
+}
 
-      /* PE 来源分歧：两个口径都成立、结论却相反。这时「偏贵 / 偏便宜 / 中性」
-         三个词都不诚实——诚实的是「说不清」。所以覆盖掉刚才的判定。 */
-      const srcConflict = peSourceConflict(idx);
-      if (srcConflict) {
-        state = 'partial';
-        headline = `${idx!.name} PE ${idx!.pe}（${p.basis} ${p.value.toFixed(
-          0
-        )}）与另一口径 ${srcConflict.alt} 差 ${(srcConflict.gap * 100).toFixed(0)}%，贵贱说不清`;
-        detail = [srcConflict.reason, detail].filter(Boolean).join('｜');
-      }
-    }
-    out.push({
-      layer: 2,
-      name: '估值层：底层指数分位',
-      state,
-      headline,
-      detail,
-    });
-  }
-
-  /* --- ③ 可用层 --- */
-  {
-    let state: CheckState;
-    let headline: string;
-    if (e.subscription === 'suspended') {
-      if (e.premium != null && e.premium > limit) {
-        state = 'fail';
-        headline = '申购关闭 + 溢价超容忍度：溢价失去套利回归机制';
-      } else {
-        state = 'partial';
-        headline = '申购关闭，只能场内溢价成交';
-      }
-    } else if (e.subscription === 'limited') {
-      state = 'partial';
-      headline = '额度受限，能否按净值买入需逐日确认';
-    } else if (e.turnover == null) {
-      state = 'partial';
-      headline = '可申赎，但流动性未取得';
-    } else if (e.turnover < ETF_TURNOVER_MIN) {
-      state = 'partial';
-      headline = `日均成交 ${e.turnover} 亿，低于 ${ETF_TURNOVER_MIN} 亿，滑点风险`;
-    } else {
-      state = 'pass';
-      headline = `正常申赎，日均成交 ${e.turnover} 亿`;
-    }
-    out.push({
-      layer: 3,
-      name: '可用层：申购状态 + 流动性',
-      state,
-      headline,
-      detail: `${e.subscriptionNote}｜规模 ${e.scale == null ? '—' : e.scale + ' 亿'}${
-        e.scaleAsOf ? `（${e.scaleAsOf}）` : ''
-      }`,
-    });
-  }
-
-  return out;
+export interface EntryAssessment {
+  grade: EntryGrade;
+  kind: 'pe' | 'pb' | 'none';
+  percentile: PctPick | null;
+  reliability: PctReliability | null;
+  /** 说不清的具体理由，按「换尺 / 窗口分歧 / 口径分歧 / 样本不足」分类 */
+  blocks: string[];
+  headline: string;
 }
 
 /**
- * ETF 状态派生：三层全过才「可配置」。
- * 关键区分：「缺数据」与「数据不合格」不是一回事。
- *   - 两项及以上明确 fail → 回避（例如高溢价 + 申购关闭，这是真实缺陷）
- *   - 只是数据没取到（partial）→ 需观察，并在页面标出「待核几项」
- * 不能因为「不知道」就判回避，那等于用缺失值做空头结论。
- * ETF 也不设「便宜但不买」——它的复合失败通常是「指数便宜但工具贵」，
- * 等溢价收敛即可，归入需观察。
+ * 入场分只回答一件事：这个指数现在贵不贵。
+ * 关键原则是**证据链有一环不可靠就不给方向**——不可靠的分位既不能支撑「便宜」，也不能支撑「贵」。
+ * 所以它只有四档，没有「大概便宜」这种中间态。
  */
-export function deriveEtfStatus(e: Etf, idx: EtfIndex | undefined, peers?: Etf[]): 'buy' | 'watch' | 'avoid' {
-  const layers = etfThreeLayer(e, idx, peers);
-  const passed = layers.filter((l) => l.state === 'pass').length;
-  const failed = layers.filter((l) => l.state === 'fail').length;
-  if (passed === 3) return 'buy';
-  if (failed >= 2) return 'avoid';
-  return 'watch';
+export function entryAssessment(idx: EtfIndex | undefined): EntryAssessment {
+  if (!idx) {
+    return { grade: 'unclear', kind: 'none', percentile: null, reliability: null, blocks: ['缺底层指数'], headline: '无底层指数' };
+  }
+  const v = indexValuation(idx);
+  if (!v) {
+    const why = typeof idx.pe === 'number' && idx.pe <= 0 ? '指数整体亏损且无 PB 分位可用' : '缺估值分位';
+    return { grade: 'unclear', kind: 'none', percentile: null, reliability: null, blocks: [why], headline: why };
+  }
+  const rel = percentileReliability(idx, v.window, idx.asOf);
+  const blocks: string[] = [];
+
+  if (v.kind === 'pb') blocks.push('PE 不可用，已换用 PB，而 PB 的便宜无法验证');
+  const conflict = percentileWindowConflict(idx);
+  if (conflict && conflict.kind === v.kind) blocks.push(`${conflict.long.label}与${conflict.short.label}方向相反`);
+  const psc = peSourceConflict(idx);
+  if (psc) blocks.push(`两个 PE 口径差 ${(psc.gap * 100).toFixed(0)}% 且结论相反`);
+  if (rel?.level === 'low') blocks.push('分位样本不可比');
+
+  let grade: EntryGrade;
+  if (blocks.length > 0) grade = 'unclear';
+  else if (v.value <= 35) grade = 'cheap';
+  else if (v.value <= 65) grade = 'fair';
+  else grade = 'expensive';
+
+  const basis = v.basis;
+  const headline = blocks.length
+    ? `${basis} ${v.value.toFixed(0)}，但${blocks[0]}——不给方向`
+    : `${basis} ${v.value.toFixed(0)}，${grade === 'cheap' ? '偏便宜' : grade === 'fair' ? '中性' : '偏贵'}`;
+
+  return { grade, kind: v.kind, percentile: v, reliability: rel, blocks, headline };
 }
 
-/** 待核项数：partial 的层数。页面要给用户看到「这个结论有多结实」 */
-export function etfPending(e: Etf, idx: EtfIndex | undefined, peers?: Etf[]): number {
-  return etfThreeLayer(e, idx, peers).filter((l) => l.state === 'partial').length;
+export function costStateOf(e: Etf): CostState {
+  if (e.premium == null) return 'unknown';
+  return e.premium > premiumLimit(e) ? 'high' : 'ok';
+}
+
+export interface EtfVerdict {
+  action: EtfAction;
+  tool: ToolAssessment;
+  entry: EntryAssessment;
+  cost: CostState;
+  /** 一句话结论，含动作理由 */
+  sentence: string;
+}
+
+/** 动作矩阵：工具档位 × 入场档位。工具落后且指数还贵，就没有理由参与 */
+const ACTION_MATRIX: Record<ToolGrade, Record<EntryGrade, EtfAction>> = {
+  first: { cheap: 'buy', fair: 'wait', expensive: 'wait', unclear: 'wait' },
+  competitive: { cheap: 'buy', fair: 'wait', expensive: 'wait', unclear: 'wait' },
+  lagging: { cheap: 'switch', fair: 'skip', expensive: 'skip', unclear: 'skip' },
+};
+
+export function etfVerdict(e: Etf, idx: EtfIndex | undefined, peers?: Etf[], refDate?: string): EtfVerdict {
+  const tool = toolAssessment(e, peers, refDate);
+  const entry = entryAssessment(idx);
+  const cost = costStateOf(e);
+
+  let action: EtfAction;
+  if (cost === 'high') {
+    /* 溢价超容忍度是一票否决：这部分钱与指数涨跌无关，是买入当刻就付掉的确定性损失。
+       它与「指数贵」不是一回事——指数贵可以等，溢价买贵了等不回来。 */
+    action = 'avoid';
+  } else if (cost === 'unknown' || tool.liq === 'unknown' || tool.feeRank === 'unknown') {
+    /* 缺数据只判待核，不判回避——但必须与合格明确区分，否则「不知道」会被当成「没事」 */
+    action = 'probe';
+  } else {
+    const m = ACTION_MATRIX[tool.grade][entry.grade];
+    /* 落后 + 指数到位 = 换工具，但前提是真的存在一只「费率最低档 + 流动性达标」的替代品。
+       光伏和电力都没有这样一只产品：0.20% 的成交只有 0.12–0.13 亿，流动性够的费率是 3 倍。
+       这种时候「换工具」是空头支票，只能判不参与，并把原因说清。 */
+    action = m === 'switch' && !tool.betterAlternative ? 'skip' : m;
+  }
+
+  const toolPart =
+    tool.grade === 'first'
+      ? '工具同类最优'
+      : tool.grade === 'competitive'
+        ? '工具处于竞争档'
+        : '工具落后同类';
+  const entryPart =
+    entry.grade === 'cheap'
+      ? '指数便宜'
+      : entry.grade === 'fair'
+        ? '指数中性'
+        : entry.grade === 'expensive'
+          ? '指数偏贵'
+          : '指数贵贱说不清';
+
+  const sentences: Record<EtfAction, string> = {
+    buy: `${toolPart} + ${entryPart} → 两件事同时成立，可以执行`,
+    switch: `${entryPart}，但${tool.headline.split('，')[0]} → 换 ${tool.betterAlternative}`,
+    wait: `${toolPart}，但${entryPart} → 等指数，不需要换产品`,
+    skip: `${toolPart}，${entryPart} → 两头都不占，不参与`,
+    avoid: `溢价 ${e.premium?.toFixed(2)}% 超过 ${premiumLimit(e)}% 容忍度 → 与指数贵贱无关的确定性损失`,
+    /* 待核的理由必须具体到「缺哪一项」，因为三项缺失的补救方式完全不同：
+       折溢价要盘中查 IOPV，流动性要看近 20 日成交，费率要翻招募说明书 */
+    probe:
+      cost === 'unknown'
+        ? '折溢价未取得——当刻买入成本未知，风险不是零，是没量出来'
+        : tool.liq === 'unknown'
+          ? `日均成交未取得——${tool.feeRank === 'high' ? `费率 ${e.fee.total}% 已确定落后，但换哪只需要流动性数据` : '买不进、卖不出的风险未知'}`
+          : '费率未取得——无法判断它是不是同类最优',
+  };
+
+  return { action, tool, entry, cost, sentence: sentences[action] };
+}
+
+/** 汇总：给页面一个分布，用于判断规则有没有区分度——单一状态占比过高就是没区分度 */
+export function etfScorecard(list: Etf[], indices: EtfIndex[], refDate?: string) {
+  const count: Record<EtfAction, number> = { buy: 0, switch: 0, wait: 0, skip: 0, avoid: 0, probe: 0 };
+  const byAction: Record<EtfAction, Etf[]> = { buy: [], switch: [], wait: [], skip: [], avoid: [], probe: [] };
+  for (const e of list) {
+    const v = etfVerdict(e, indices.find((i) => i.id === e.indexId), list, refDate);
+    count[v.action] += 1;
+    byAction[v.action].push(e);
+  }
+  return { count, byAction };
+}
+
+/** 按指数分组：入场分是共享的，一组只该出现一次 */
+export function groupByIndex(list: Etf[], indices: EtfIndex[], refDate?: string) {
+  return indices
+    .map((idx) => {
+      const members = list.filter((e) => e.indexId === idx.id);
+      if (members.length === 0) return null;
+      const entry = entryAssessment(idx);
+      const ranked = toolRanking(members[0], members, refDate).map((e, i) => ({
+        etf: e,
+        rank: i + 1,
+        verdict: etfVerdict(e, idx, list, refDate),
+      }));
+      return { idx, entry, rows: ranked };
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null);
+}
+
+
+/**
+ * 组级结论：同一个指数下，工具层面到底有没有可选项。
+ * 这一层是为了说清一件旧模型讲不出来的事——某些指数下所有 ETF 都不合格。
+ * 光伏 4 只、电力 3 只全部「落后」：0.20% 那两只成交只有 0.12–0.13 亿，
+ * 流动性够的那几只费率是最低档的 3 倍。这不是「各有所长」，是没有一只两头都占。
+ */
+export function groupSummary(rows: Array<{ verdict: EtfVerdict }>): string {
+  const n = rows.length;
+  const firsts = rows.filter((r) => r.verdict.tool.grade === 'first').length;
+  const probes = rows.filter((r) => r.verdict.action === 'probe').length;
+  const buys = rows.filter((r) => r.verdict.action === 'buy').length;
+  if (n === 1) {
+    return firsts ? '同指数仅此一只产品——「最优」是默认值，不是比较出来的' : '同指数仅此一只产品，且它自身有短板';
+  }
+  if (firsts === 0) {
+    const lag = rows.filter((r) => r.verdict.tool.grade === 'lagging').length;
+    if (lag === n) {
+      return `${n} 只全部落在「落后」档：费率最低的成交不足，流动性够的费率高——没有一只两头都占`;
+    }
+    return `${n} 只里没有一只同时做到「费率最低档 + 流动性达标」：${lag} 只明确落后，其余 ${n - lag} 只无法与同类拉开差距`;
+  }
+  if (probes > 0 && firsts > 0) {
+    return `${n} 只里 ${firsts} 只费率最低档，但其中 ${probes} 只缺折溢价或成交数据——补齐之前，「最优」只算纸面结论`;
+  }
+  return `${n} 只里 ${firsts} 只费率最低档${buys ? `，${buys} 只可直接配置` : ''}`;
 }

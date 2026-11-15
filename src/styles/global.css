@@ -118,6 +118,9 @@ td.num { white-space: nowrap; }
 .badge.buy { color: var(--cheap); background: rgba(53, 201, 138, 0.1); border-color: rgba(53, 201, 138, 0.25); }
 .badge.watch { color: var(--fair); background: rgba(232, 194, 90, 0.1); border-color: rgba(232, 194, 90, 0.25); }
 .badge.avoid { color: var(--muted); background: rgba(138, 151, 166, 0.08); border-color: rgba(138, 151, 166, 0.2); }
+/* 两维模型的动作色：换工具用强调色（唯一「今天就能做」的动作），不参与用暗色（没有动作） */
+.badge.accent { color: var(--accent); background: rgba(110, 168, 254, 0.1); border-color: rgba(110, 168, 254, 0.3); }
+.badge.dim { color: var(--dim); background: rgba(92, 104, 116, 0.1); border-color: rgba(92, 104, 116, 0.25); }
 
 /* ---------- 分位条 ---------- */
 .pbar { position: relative; height: 26px; min-width: 148px; }

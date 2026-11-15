@@ -2,70 +2,60 @@
 import Base from '../../layouts/Base.astro';
 import etfsData from '../../../data/etfs.json';
 import {
-  etfThreeLayer,
-  deriveEtfStatus,
-  etfPending,
-  indexPercentile,
+  etfVerdict,
+  etfScorecard,
+  groupByIndex,
+  groupSummary,
   indexValuation,
   peSourceConflict,
   percentileWindowConflict,
   percentileReliability,
   peerFee,
   premiumInFeeYears,
-  isQdii,
   premiumLimit,
+  isQdii,
   SUBSCRIPTION_LABEL,
-  STATE_LABEL,
-  STATUS_LABEL,
+  ACTION_LABEL,
+  ACTION_HINT,
+  ACTION_TONE,
+  TOOL_LABEL,
+  ENTRY_LABEL,
   ETF_FEE_MAX,
   ETF_TURNOVER_MIN,
+  ETF_DATA_STALE_DAYS,
   type EtfsFile,
   type Etf,
   type EtfIndex,
+  type EntryGrade,
+  type EtfAction,
 } from '../../lib/rules';
 
 const data = etfsData as unknown as EtfsFile;
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const snapshot = data.meta.snapshot;
 const idxOf = (id: string) => data.indices.find((i) => i.id === id);
 
-const stOf = (e: Etf) => deriveEtfStatus(e, idxOf(e.indexId), data.etfs);
-const rank = { buy: 0, watch: 1, avoid: 2 } as const;
-const sorted = [...data.etfs].sort((a, b) => {
-  const r = rank[stOf(a)] - rank[stOf(b)];
-  if (r !== 0) return r;
-  return (premiumInFeeYears(a) ?? -1) - (premiumInFeeYears(b) ?? -1);
-});
+/* 两维模型的全部派生都在这里，页面不自己算任何判定 */
+const verdictOf = (e: Etf) => etfVerdict(e, idxOf(e.indexId), data.etfs, snapshot);
+const score = etfScorecard(data.etfs, data.indices, snapshot);
+const indexGroups = groupByIndex(data.etfs, data.indices, snapshot);
 
-const STATE_CLASS = { pass: 'cheap', partial: 'fair', fail: 'expensive' } as const;
-
-/**
- * 卡点分布：把「需观察」拆开。
- * 多数是需观察，但「指数贵」「工具贵」「数据没取到」是三件完全不同的事，
- * 混成一个数字会让人以为「全部不能买」，那正是这个面板要避免的误读。
- */
-const blockers = data.etfs.map((e) => {
-  const L = etfThreeLayer(e, idxOf(e.indexId), data.etfs);
-  const fails = L.filter((l) => l.state === 'fail');
-  const partials = L.filter((l) => l.state === 'partial');
-  let kind: 'ready' | 'evidence' | 'one-fail' | 'hard-fail';
-  if (fails.length === 0 && partials.length === 0) kind = 'ready';
-  else if (fails.length === 0) kind = 'evidence';
-  else if (fails.length === 1) kind = 'one-fail';
-  else kind = 'hard-fail';
-  return { e, kind, fails, partials };
-});
-const blockerCount = {
-  ready: blockers.filter((b) => b.kind === 'ready').length,
-  evidence: blockers.filter((b) => b.kind === 'evidence').length,
-  oneFail: blockers.filter((b) => b.kind === 'one-fail').length,
-  hardFail: blockers.filter((b) => b.kind === 'hard-fail').length,
+const ENTRY_TONE: Record<EntryGrade, string> = {
+  cheap: 'cheap',
+  fair: 'fair',
+  expensive: 'expensive',
+  unclear: 'unknown',
 };
 
-const groups = [
-  { status: 'buy' as const, hint: '成本、估值、可用三层全部通过——可以按计划配置' },
-  { status: 'watch' as const, hint: '有明确未过项，或关键数据待核——先补数据或等条件' },
-  { status: 'avoid' as const, hint: '两项以上明确不合格——通常是「指数便宜，但工具在收你过路费」' },
-];
+const ACTION_ORDER: EtfAction[] = ['buy', 'switch', 'wait', 'skip', 'avoid', 'probe'];
+const ACTION_NOTE: Record<EtfAction, string> = {
+  buy: '工具同类最优 + 指数便宜',
+  switch: '指数到位，换一只立刻能做',
+  wait: '工具对，指数还没到',
+  skip: '两头都不占',
+  avoid: '溢价无法回归',
+  probe: '关键数据没拿到',
+};
 
 // 溢价换算：把「贵一点」翻译成「多少年费率」
 const REF_FEE = 0.8;
@@ -97,6 +87,7 @@ const divergences = data.indices
   }))
   .filter((i) => Math.abs(i.gap) > 30)
   .sort((a, b) => Math.abs(b.gap) - Math.abs(a.gap));
+
 ---
 
 <Base
@@ -350,111 +341,133 @@ const divergences = data.indices
   </div>
 
   <div class="section-head">
-    <h2>ETF 三层</h2>
-    <span class="hint">成本 → 估值 → 可用，顺序不能倒：先别付过路费，再谈买什么</span>
+    <h2>两个维度：买哪只 · 什么时候买</h2>
+    <span class="hint">工具分只在同指数内比较，入场分是指数自己的属性——两件事不能合成一个词</span>
   </div>
 
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
-    {[
-      { n: blockerCount.ready, label: '三层全过', sub: '可按计划配置', color: 'var(--cheap)' },
-      { n: blockerCount.evidence, label: '只是证据不齐', sub: '不贵，但还证明不了便宜', color: 'var(--fair)' },
-      { n: blockerCount.oneFail, label: '一层明确不合格', sub: '贵 / 工具贵 / 买不到，选其一', color: 'var(--muted)' },
-      { n: blockerCount.hardFail, label: '两层以上不合格', sub: '真实缺陷，回避', color: 'var(--expensive)' },
-    ].map((b) => (
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:10px">
+    {ACTION_ORDER.map((a) => (
       <div class="card" style="padding:12px 14px">
-        <div class="mono" style={`font-size:24px;font-weight:600;color:${b.color}`}>{b.n}</div>
-        <div class="small" style="font-weight:550;margin-top:2px">{b.label}</div>
-        <div class="small dim" style="margin-top:2px;line-height:1.5">{b.sub}</div>
+        <div class="mono" style={`font-size:24px;font-weight:600;color:var(--${
+          ACTION_TONE[a] === 'accent' ? 'accent' : ACTION_TONE[a] === 'dim' ? 'dim' : ACTION_TONE[a] === 'unknown' ? 'muted' : ACTION_TONE[a]
+        })`}>{score.count[a]}</div>
+        <div class="small" style="font-weight:550;margin-top:2px">
+          <span class={`badge ${ACTION_TONE[a]}`}>{ACTION_LABEL[a]}</span>
+        </div>
+        <div class="small dim" style="margin-top:4px;line-height:1.5">{ACTION_NOTE[a]}</div>
       </div>
     ))}
   </div>
-  <p class="small dim" style="margin:-4px 0 14px;line-height:1.75">
-    这四格比「可配置 / 需观察 / 回避」三个状态更有用：{data.etfs.length} 只里有 {blockerCount.evidence} 只
-    并不是「贵」，而是<strong>便宜的证明链不完整</strong>——分位样本不可比、或折溢价没取到。
-    这两类要分开看，因为前者等指数结构稳定下来就会消失，后者补一次数据就能消失，
-    而「贵」只能等价格。
-    {blockerCount.ready > 0 && (
-      <>
-        <br />
-        <strong>「三层全过」只说明工具与估值同时合格，不是仓位建议。</strong>
-        它不评估波动与回撤——港股通互联网这类品种年化波动 30%+、最大回撤接近 50%，
-        仓位要按你能承受的回撤倒推，而不是按「便宜」推。
-      </>
-    )}
+
+  <p class="small dim" style="margin:12px 0 4px;line-height:1.8">
+    六个动作加起来是 {data.etfs.length} 只。<strong>把它们分开记录，是因为这六件事的补救方式完全不同：</strong>
+    「换工具」今天就能做（换一只同指数更便宜的，不需要等任何东西）；「等时机」不需要换产品，等指数就行；
+    「待核」需要补一次数据（盘中 IOPV、近 20 日成交）；「不参与」和「回避」才是真的没有动作。
+    旧版把后四类全部压成「需观察」一个词，于是 {data.etfs.length} 只里有 22 只不可区分。
   </p>
-  <div class="card" style="overflow-x:auto">
-    <table>
-      <thead>
-        <tr>
-          <th>工具</th>
-          <th class="num">类型</th>
-          <th class="num">① 成本</th>
-          <th class="num">② 估值</th>
-          <th class="num">③ 可用</th>
-          <th class="num">溢价</th>
-          <th class="num">费率</th>
-          <th class="num">状态</th>
-        </tr>
-      </thead>
-      <tbody>
-        {sorted.map((e) => {
-          const idx = idxOf(e.indexId);
-          const layers = etfThreeLayer(e, idx, data.etfs);
-          const st = stOf(e);
-          const pending = etfPending(e, idx, data.etfs);
-          return (
+
+  <div class="notice info" style="margin-top:14px">
+    <strong>为什么按指数分组，而不是按状态分组。</strong>
+    入场分判的是「底层指数」，同一个指数下所有 ETF 共享同一个答案——所以在扁平表里，
+    港股通互联网三只会重复显示三遍「PE 5 年分位 21，偏便宜」。
+    分组之后，每组只出现一次入场判断，组内只比较工具。<strong>这样「指数便宜但工具贵」才看得出来</strong>——
+    旧版把两个维度 AND 成一个状态，正好把这句话藏掉了。
+  </div>
+
+  {indexGroups.map(({ idx, entry, rows }) => (
+    <div class="card" style="margin-top:16px;overflow-x:auto">
+      <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid var(--line)">
+        <span class={`badge ${ENTRY_TONE[entry.grade]}`}>{ENTRY_LABEL[entry.grade]}</span>
+        <strong style="font-size:15px">{idx.name}</strong>
+        <span class="small dim mono">{idx.code}</span>
+        <span class="small" style="color:var(--muted)">{entry.headline}</span>
+        <span class="small dim mono" style="margin-left:auto">{rows.length} 只 · 数据日 {idx.asOf}</span>
+      </div>
+      {entry.blocks.length > 0 && (
+        <p class="small" style="margin:10px 0 0;color:var(--fair);line-height:1.75">
+          不给方向的理由：{entry.blocks.join('；')}。
+          <span class="dim">分位数值仍然保留在下面那张指数表里——读得出数字，读不出结论。</span>
+        </p>
+      )}
+      <p class="small dim" style="margin:8px 0 10px;line-height:1.7">{groupSummary(rows)}</p>
+      <table>
+        <thead>
+          <tr>
+            <th>工具</th>
+            <th class="num">工具分</th>
+            <th class="num">费率</th>
+            <th class="num">日均成交</th>
+            <th class="num">溢价</th>
+            <th class="num">动作</th>
+            <th>为什么</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(({ etf, rank, verdict }) => (
             <tr>
               <td>
-                <a href={`${base}/etfs/${e.code}/`} style="font-weight:550">{e.name}</a>
-                <div class="small dim mono">{e.exchange} {e.code} · {idxOf(e.indexId)?.name ?? e.indexId}</div>
-              </td>
-              <td class="num small">{e.type}</td>
-              {layers.map((l) => (
-                <td class="num">
-                  <span class={`badge ${STATE_CLASS[l.state]}`} title={l.detail} style="cursor:help">
-                    {STATE_LABEL[l.state]}
-                  </span>
-                  <div class="dim" style="font-size:11px;margin-top:3px;max-width:15ch;margin-left:auto">{l.headline}</div>
-                </td>
-              ))}
-              <td class="num mono" style={`font-weight:600;color:${e.premium != null && e.premium > 2 ? 'var(--expensive)' : 'var(--muted)'}`}>
-                {e.premium == null ? '—' : `${e.premium > 0 ? '+' : ''}${e.premium.toFixed(2)}%`}
-              </td>
-              <td class="num mono">
-                {e.fee.total == null ? '—' : `${e.fee.total}%`}
-                {(() => {
-                  const pf = peerFee(e, data.etfs);
-                  if (!pf || e.fee.total == null || pf.ratio < 1.2) return null;
-                  return (
-                    <div
-                      class="dim"
-                      style={`font-size:10.5px;margin-top:3px;color:${pf.ratio >= 1.5 ? 'var(--expensive)' : 'var(--dim)'}`}
-                      title={`同指数可比产品最低 ${pf.min}%/年（${pf.codes.join('、')}）`}
-                    >
-                      最低 {pf.min}%
-                    </div>
-                  );
-                })()}
+                <a href={`${base}/etfs/${etf.code}/`} style="font-weight:550" title={etf.role}>{etf.name}</a>
+                <div class="small dim mono">{etf.exchange} {etf.code}{isQdii(etf) ? ' · QDII' : ''}</div>
               </td>
               <td class="num">
-                <span class={`badge ${st}`}>{STATUS_LABEL[st]}</span>
-                {pending > 0 && <div class="dim" style="font-size:10.5px;margin-top:3px">{pending} 项待核</div>}
+                <span
+                  class={`badge ${verdict.tool.grade === 'first' ? 'cheap' : verdict.tool.grade === 'competitive' ? 'fair' : 'expensive'}`}
+                >
+                  {TOOL_LABEL[verdict.tool.grade]}
+                </span>
+                {verdict.tool.total > 1 && (
+                  <div class="dim mono" style="font-size:10.5px;margin-top:3px">{rank} / {verdict.tool.total}</div>
+                )}
               </td>
+              <td class="num mono">
+                {etf.fee.total == null ? '—' : `${etf.fee.total}%`}
+                {verdict.tool.peers && (
+                  <div class="dim" style="font-size:10.5px">最低 {verdict.tool.peers.min}%</div>
+                )}
+              </td>
+              <td class="num mono">{etf.turnover == null ? '—' : `${etf.turnover} 亿`}</td>
+              <td
+                class="num mono"
+                style={`color:${etf.premium != null && etf.premium > premiumLimit(etf) ? 'var(--expensive)' : 'var(--muted)'}`}
+              >
+                {etf.premium == null ? '—' : `${etf.premium > 0 ? '+' : ''}${etf.premium.toFixed(2)}%`}
+              </td>
+              <td class="num">
+                <span class={`badge ${ACTION_TONE[verdict.action]}`}>{ACTION_LABEL[verdict.action]}</span>
+              </td>
+              <td class="small muted" style="max-width:40ch;line-height:1.6">{verdict.sentence}</td>
             </tr>
-          );
-        })}
-      </tbody>
-    </table>
-    <p class="small dim" style="margin:14px 0 0;line-height:1.75">
-      ① <strong>成本层</strong>：折溢价超过容忍度（境内 1%／QDII 2%）判不合格——因为这部分钱跟指数涨跌无关，
-      是确定性的损耗；综合费率上限 {ETF_FEE_MAX}%/年。<br />
-      ② <strong>估值层</strong>：只看底层指数 PE 分位（≤35 通过 / 35–65 中性 / &gt;65 偏贵），不看 ETF 自己的价格。<br />
-      ③ <strong>可用层</strong>：申购状态 + 日均成交额（下限 {ETF_TURNOVER_MIN} 亿）。工具执行不了，前两层都白算。<br />
-      <strong>① 还有一条相对锚</strong>：同一指数的多只产品里，费率比最低那只高 {0.2}pct 以上且达到 1.5 倍时，成本层降为「部分」——
-      0.60% 本身不贵（在 {ETF_FEE_MAX}% 上限内），但同款只要 0.20% 时，多付的 0.40pct/年 买不到任何东西。费率列下面那行「最低 X%」就是这条规则的结果。<br />
-      <strong>关于「待核」</strong>：标为「部分」的层不一定是坏消息，多数是快照里没取到折溢价（需要盘中 IOPV）。
-      缺数据不能当不合格用，所以状态上单列，不并进「回避」。
-    </p>
+          ))}
+        </tbody>
+      </table>
+      {rows.some((r) => r.verdict.tool.notes.length > 0) && (
+        <div class="small dim" style="margin-top:8px;line-height:1.7">
+          {[...new Set(rows.flatMap((r) => r.verdict.tool.notes))].map((n) => (
+            <div>· {n}</div>
+          ))}
+        </div>
+      )}
+    </div>
+  ))}
+
+  <div class="card" style="margin-top:22px">
+    <h3 style="margin:0 0 8px;font-size:14px">判定口径</h3>
+    <div class="small" style="line-height:1.85;color:var(--muted)">
+      <strong style="color:var(--text)">工具分</strong>（只在同指数内比较，不含任何估值判断）：<br />
+      费率最低档 + 日均成交 ≥ {ETF_TURNOVER_MIN} 亿 → <strong>同类最优</strong>；
+      费率比最低档高、但差幅未达 {0.2}pct 或未到 1.5 倍 → <strong>竞争档</strong>；
+      费率是最低档 1.5 倍以上、或成交低于 {ETF_TURNOVER_MIN} 亿 → <strong>落后</strong>。<br />
+      规模与成交数据超过 {ETF_DATA_STALE_DAYS} 天视为未取得——陈旧和缺失的风险是一样的，都不能当合格用。<br /><br />
+      <strong style="color:var(--text)">入场分</strong>（指数自身属性，与买哪只无关）：
+      PE 分位 ≤35 <strong>便宜</strong>、35–65 <strong>中性</strong>、&gt;65 <strong>偏贵</strong>；
+      但<strong>证据链有一环不可靠就不给方向</strong>——分位样本不可比、PE 为负已换用 PB、
+      长窗口与短窗口方向相反、两个 PE 口径结论相反，任一条成立即判<strong>说不清</strong>。<br /><br />
+      <strong style="color:var(--text)">动作</strong>：
+      最优/竞争 + 便宜 → 可配置；最优/竞争 + 其余 → 等时机；
+      落后 + 便宜且有更好替代 → 换工具；落后 + 其余 → 不参与；
+      溢价超容忍度 → 回避（与指数贵贱无关的确定性损失）；
+      决定能不能买的那项数据缺失 → 待核（风险未知，不等于风险可控）。
+    </div>
   </div>
 
   <div class="section-head">
@@ -510,53 +523,6 @@ const divergences = data.indices
       这也解释了为什么恒生科技的四只 ETF 成本层是「部分」：不是工具坏了，是数据配不上。
     </p>
   </div>
-
-  {groups.map((g) => {
-    const list = sorted.filter((e) => stOf(e) === g.status);
-    if (list.length === 0) return null;
-    return (
-      <>
-        <div class="section-head">
-          <h2>
-            <span class={`badge ${g.status}`}>{STATUS_LABEL[g.status]}</span>
-            <span style="font-size:14px;font-weight:400;color:var(--muted);margin-left:10px">{g.hint}</span>
-          </h2>
-          <span class="hint">{list.length} 只</span>
-        </div>
-        <div class="card" style="overflow-x:auto">
-          <table>
-            <thead>
-              <tr>
-                <th>工具</th>
-                <th class="num">规模（亿）</th>
-                <th class="num">日均成交（亿）</th>
-                <th class="num">申购状态</th>
-                <th>在组合里的角色</th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.map((e) => (
-                <tr>
-                  <td>
-                    <a href={`${base}/etfs/${e.code}/`} style="font-weight:550">{e.name}</a>
-                    <div class="small dim mono">{e.fullName}</div>
-                  </td>
-                  <td class="num mono">{e.scale ?? '—'}</td>
-                  <td class="num mono">{e.turnover ?? '—'}</td>
-                  <td class="num">
-                    <span class={`badge ${e.subscription === 'open' ? 'cheap' : e.subscription === 'limited' ? 'fair' : 'expensive'}`}>
-                      {SUBSCRIPTION_LABEL[e.subscription]}
-                    </span>
-                  </td>
-                  <td class="small muted" style="max-width:34ch">{e.role}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </>
-    );
-  })}
 
   <div class="notice info" style="margin-top:28px">
     <strong>为什么 ETF 不用「安全边际」这个词</strong>：个股的安全边际来自价格相对价值打折，可以等；ETF 的额外收益有两个来源——

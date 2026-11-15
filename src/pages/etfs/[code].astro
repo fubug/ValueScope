@@ -2,25 +2,30 @@
 import Base from '../../layouts/Base.astro';
 import etfsData from '../../../data/etfs.json';
 import {
-  etfThreeLayer,
-  deriveEtfStatus,
-  etfPending,
+  etfVerdict,
+  toolRanking,
+  entryAssessment,
   impliedPayoutRatio,
   indexValuation,
   pbPercentile,
   PAYOUT_CEILING,
   peSourceConflict,
   percentileWindowConflict,
+  percentileReliability,
   premiumInFeeYears,
   premiumLimit,
   isQdii,
   SUBSCRIPTION_LABEL,
-  STATE_LABEL,
-  STATE_RANK,
-  STATUS_LABEL,
+  ACTION_LABEL,
+  ACTION_HINT,
+  ACTION_TONE,
+  TOOL_LABEL,
+  ENTRY_LABEL,
+  ETF_TURNOVER_MIN,
   type EtfsFile,
   type Etf,
   type EtfIndex,
+  type EntryGrade,
 } from '../../lib/rules';
 
 export function getStaticPaths() {
@@ -34,11 +39,11 @@ const data = etfsData as unknown as EtfsFile;
 const { e } = Astro.props as { e: Etf };
 const idx: EtfIndex | undefined = data.indices.find((i) => i.id === e.indexId);
 const base = import.meta.env.BASE_URL.replace(/^\/$/, '').replace(/\/$/, '');
+const snapshot = data.meta.snapshot;
 
-const layers = etfThreeLayer(e, idx, data.etfs);
-const st = deriveEtfStatus(e, idx, data.etfs);
-const pending = etfPending(e, idx, data.etfs);
-const passedCount = layers.filter((l) => l.state === 'pass').length;
+const v = etfVerdict(e, idx, data.etfs, snapshot);
+const tool = v.tool;
+const entry = v.entry;
 const feeYears = premiumInFeeYears(e);
 const val = indexValuation(idx);
 const pbOnly = val?.kind === 'pb';
@@ -47,10 +52,24 @@ const psc = peSourceConflict(idx);
 const payout = impliedPayoutRatio(idx);
 const payoutHigh = payout != null && payout > PAYOUT_CEILING;
 
-const STATE_CLASS = { pass: 'cheap', partial: 'fair', fail: 'expensive' } as const;
-const STATE_ICON = { pass: '✓', partial: '△', fail: '✗' } as const;
-const pctColor = (v: number) =>
-  v <= 15 ? 'var(--cheap)' : v <= 35 ? 'var(--fair)' : v <= 65 ? 'var(--muted)' : 'var(--expensive)';
+/* 同指数对比：这一块是「买哪只」的全部依据，不能只看自己一只 */
+const peers = data.etfs.filter((p) => p.indexId === e.indexId);
+const ranked = toolRanking(e, peers, snapshot).map((p, i) => ({
+  etf: p,
+  rank: i + 1,
+  verdict: etfVerdict(p, idx, data.etfs, snapshot),
+}));
+
+const ENTRY_TONE: Record<EntryGrade, string> = {
+  cheap: 'cheap',
+  fair: 'fair',
+  expensive: 'expensive',
+  unclear: 'unknown',
+};
+
+const pctColor = (x: number) =>
+  x <= 15 ? 'var(--cheap)' : x <= 35 ? 'var(--fair)' : x <= 65 ? 'var(--muted)' : 'var(--expensive)';
+
 ---
 
 <Base title={`${e.name} ${e.code}`}>
@@ -62,8 +81,7 @@ const pctColor = (v: number) =>
   <p class="lede">
     {e.type} · 跟踪 {idx?.name ?? '—'} · 复盘日 {e.lastReviewed}
     {isQdii(e) && <> · <span class="badge fair">QDII</span></>}
-    <span class={`badge ${st}`} style="margin-left:6px">{STATUS_LABEL[st]}</span>
-    {pending > 0 && <span class="badge unknown" style="margin-left:6px">{pending} 项待核</span>}
+    <span class={`badge ${ACTION_TONE[v.action]}`} style="margin-left:6px">{ACTION_LABEL[v.action]}</span>
   </p>
 
   {e.premium != null && e.premium > premiumLimit(e) && (
@@ -79,36 +97,132 @@ const pctColor = (v: number) =>
   )}
 
   <div class="section-head">
-    <h2>三层校验</h2>
-    <span class="hint">{passedCount} / 3 通过 · 成本 → 估值 → 可用，顺序不能倒</span>
+    <h2>两个判定，不能合成一句</h2>
+    <span class="hint">上面是「买哪只」，下面是「什么时候买」——它们各自独立，所以可能一个对一个不对</span>
   </div>
-  <div class="card" style="padding:0;overflow:hidden">
-    {layers.map((l) => (
-      <div style="display:grid;grid-template-columns:44px 1fr;gap:14px;padding:14px 18px;border-bottom:1px solid var(--line)">
-        <div style="display:flex;justify-content:center;padding-top:1px">
-          <span
-            class={`badge ${STATE_CLASS[l.state]}`}
-            style="width:30px;height:30px;display:grid;place-items:center;font-size:14px;border-radius:8px"
-          >
-            {STATE_ICON[l.state]}
-          </span>
-        </div>
-        <div>
-          <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap">
-            <strong style="font-size:14px">第 {l.layer} 层 · {l.name}</strong>
-            <span style={`font-size:12.5px;color:var(--${l.state === 'pass' ? 'cheap' : l.state === 'partial' ? 'fair' : 'expensive'})`}>
-              {l.headline}
-            </span>
-          </div>
-          <div class="small muted" style="margin-top:5px;line-height:1.65">{l.detail}</div>
-        </div>
+
+  <div class="grid grid-2" style="gap:16px">
+    <div class="card">
+      <div class="kv">
+        <span class="k">工具分 · 只在同指数内比较</span>
+        <span
+          class="v"
+          style={`color:var(--${tool.grade === 'first' ? 'cheap' : tool.grade === 'competitive' ? 'fair' : 'expensive'})`}
+        >
+          {TOOL_LABEL[tool.grade]}
+        </span>
+        <span class="sub">
+          {tool.total > 1 ? `同指数 ${tool.total} 只里排第 ${tool.rank}` : '同指数仅此一只'}
+          {' · '}费率 {e.fee.total == null ? '待核' : `${e.fee.total}%`}
+          {' · '}成交 {e.turnover == null ? '待核' : `${e.turnover} 亿`}
+        </span>
       </div>
-    ))}
-    <div style="padding:12px 18px;background:rgba(255,255,255,.02)" class="small dim">
-      判定口径：境内 ETF 溢价容忍 {1}%、QDII {2}%；综合费率上限 {1}%；日均成交下限 0.5 亿。
-      费率未取得时按「部分通过」处理，不按不合格处理。
+      <p class="small" style="margin:12px 0 0;line-height:1.8;color:var(--muted)">{tool.headline}。</p>
+      {tool.notes.map((n) => (
+        <p class="small dim" style="margin:6px 0 0;line-height:1.75">· {n}</p>
+      ))}
+      {tool.betterAlternative && (
+        <p class="small" style="margin:12px 0 0;padding-top:10px;border-top:1px solid var(--line)">
+          <span class="dim">同指数更合格的产品：</span>
+          <a href={`${base}/etfs/${tool.betterAlternative}/`} class="mono" style="color:var(--accent)">
+            {tool.betterAlternative}
+          </a>
+        </p>
+      )}
+    </div>
+
+    <div class="card">
+      <div class="kv">
+        <span class="k">入场分 · 指数自身属性</span>
+        <span class="v" style={`color:var(--${ENTRY_TONE[entry.grade] === 'unknown' ? 'muted' : ENTRY_TONE[entry.grade]})`}>
+          {ENTRY_LABEL[entry.grade]}
+        </span>
+        <span class="sub">{entry.headline}</span>
+      </div>
+      {entry.blocks.length > 0 ? (
+        <div class="small" style="margin:12px 0 0;line-height:1.8;color:var(--muted)">
+          不给方向的理由：
+          {entry.blocks.map((b) => (
+            <div>· {b}</div>
+          ))}
+          <div class="dim" style="margin-top:6px">
+            这不是「数据没取到」，是「取到了但没有唯一读法」——补数据解决不了，只能等结构自己稳下来。
+          </div>
+        </div>
+      ) : (
+        <p class="small" style="margin:12px 0 0;line-height:1.8;color:var(--muted)">
+          分位样本可信、没有窗口分歧、没有口径分歧——所以这一层可以给出方向。
+        </p>
+      )}
     </div>
   </div>
+
+  <div
+    class="card"
+    style={`margin-top:16px;border-left:3px solid var(--${ACTION_TONE[v.action] === 'accent' ? 'accent' : ACTION_TONE[v.action] === 'unknown' ? 'muted' : ACTION_TONE[v.action] === 'dim' ? 'dim' : ACTION_TONE[v.action]})`}
+  >
+    <div style="display:flex;gap:12px;align-items:baseline;flex-wrap:wrap">
+      <span class={`badge ${ACTION_TONE[v.action]}`} style="font-size:12.5px;padding:3px 12px">{ACTION_LABEL[v.action]}</span>
+      <strong style="font-size:15.5px">{v.sentence}</strong>
+    </div>
+    <p class="small muted" style="margin:8px 0 0;line-height:1.75">{ACTION_HINT[v.action]}</p>
+  </div>
+
+  {ranked.length > 1 && (
+    <>
+      <div class="section-head">
+        <h2>同指数对比</h2>
+        <span class="hint">同一件东西，不同价钱的包装——这一栏才是「买哪只」的依据</span>
+      </div>
+      <div class="card" style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>工具</th>
+              <th class="num">工具分</th>
+              <th class="num">费率</th>
+              <th class="num">日均成交</th>
+              <th class="num">溢价</th>
+              <th class="num">规模</th>
+              <th class="num">动作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ranked.map((r) => (
+              <tr style={r.etf.code === e.code ? 'background:rgba(110,168,254,.06)' : ''}>
+                <td>
+                  <a href={`${base}/etfs/${r.etf.code}/`} style={r.etf.code === e.code ? 'font-weight:650' : 'font-weight:450'}>
+                    {r.etf.name}
+                  </a>
+                  {r.etf.code === e.code && <span class="dim small"> ← 本页</span>}
+                  <div class="small dim mono">{r.etf.code}</div>
+                </td>
+                <td class="num">
+                  <span
+                    class={`badge ${r.verdict.tool.grade === 'first' ? 'cheap' : r.verdict.tool.grade === 'competitive' ? 'fair' : 'expensive'}`}
+                  >
+                    {TOOL_LABEL[r.verdict.tool.grade]}
+                  </span>
+                  <div class="dim mono" style="font-size:10.5px;margin-top:3px">第 {r.rank}</div>
+                </td>
+                <td class="num mono">{r.etf.fee.total == null ? '—' : `${r.etf.fee.total}%`}</td>
+                <td class="num mono">{r.etf.turnover == null ? '—' : `${r.etf.turnover} 亿`}</td>
+                <td class="num mono">{r.etf.premium == null ? '—' : `${r.etf.premium.toFixed(2)}%`}</td>
+                <td class="num mono">{r.etf.scale == null ? '—' : `${r.etf.scale} 亿`}</td>
+                <td class="num">
+                  <span class={`badge ${ACTION_TONE[r.verdict.action]}`}>{ACTION_LABEL[r.verdict.action]}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p class="small dim" style="margin:12px 0 0;line-height:1.75">
+          排名只在同一档位内可比：档位先比（同类最优 → 竞争档 → 落后），同档内按费率升序、成交额降序。
+          这里没有加权求和——费率与流动性都是「每次交易/每年」都要付的东西，谁重谁轻取决于你打算持有多久，不该由规则替你定。
+        </p>
+      </div>
+    </>
+  )}
 
   <div class="grid grid-3" style="margin-top:16px">
     <div class="card">
