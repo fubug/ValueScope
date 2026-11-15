@@ -12,6 +12,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
+  deriveEtfStatus,
   deriveStatus,
   threeLayer,
   marginOfSafety,
@@ -205,6 +206,91 @@ for (const s of stocks.stocks ?? []) {
 
 if ((stocks.stocks ?? []).length === 0) warnings.push('个股列表为空，页面会只显示录入指引');
 
+/* ---------- ETF ---------- */
+const etfs = read('data/etfs.json');
+{
+  const ETF_TYPES = ['QDII-LOF', 'QDII-ETF', 'ETF', 'LOF'];
+  const etfTally = { buy: 0, watch: 0, avoid: 0 };
+  globalThis.__etfTally = etfTally;
+  const SUBS = ['open', 'limited', 'suspended'];
+  const indexIds = new Set();
+
+  for (const i of etfs.indices ?? []) {
+    const tag = `index[${i.id ?? '?'}]`;
+    if (!i.id) errors.push(`${tag} 缺少 id`);
+    if (indexIds.has(i.id)) errors.push(`${tag} id 重复`);
+    indexIds.add(i.id);
+    if (!i.name || !i.code) errors.push(`${tag} 缺少 name/code`);
+    if (!i.asOf) errors.push(`${tag} 缺少 asOf——估值分位必须标时点`);
+
+    const hasPct = ['y3', 'y5', 'y10'].some((w) => typeof i.pePct?.[w] === 'number');
+    if (!hasPct) errors.push(`${tag} 没有任何 PE 分位，ETF 的「估值层」会直接判不合格`);
+    for (const w of ['y3', 'y5', 'y10']) {
+      const v = i.pePct?.[w];
+      if (v != null && (v < 0 || v > 100)) errors.push(`${tag} pePct.${w}=${v} 超出 0–100`);
+    }
+
+    // 分位必须可追溯：没有来源的分位等于编的
+    if (!Array.isArray(i.sources) || i.sources.length === 0) {
+      errors.push(`${tag} 缺少 sources——分位从哪来的必须写清`);
+    }
+    // 口径冲突是常态，但有冲突就必须交代
+    if (!i.peCaveat || i.peCaveat.length < 20) {
+      warnings.push(`${tag} 没有 peCaveat：跨市场 PE 口径差异大，建议说明用的是哪套口径`);
+    }
+  }
+
+  for (const e of etfs.etfs ?? []) {
+    const tag = `etf[${e.code ?? '?'}]`;
+    if (!e.code) errors.push(`${tag} 缺少 code`);
+    if (!ETF_TYPES.includes(e.type)) errors.push(`${tag} type 非法：${e.type}`);
+    if (!indexIds.has(e.indexId)) errors.push(`${tag} indexId="${e.indexId}" 在 indices 里不存在`);
+    if (!SUBS.includes(e.subscription)) errors.push(`${tag} subscription 非法：${e.subscription}`);
+    if (!e.subscriptionNote || e.subscriptionNote.length < 10) {
+      errors.push(`${tag} subscriptionNote 过短——申购状态是「能不能执行」的关键，必须说明`);
+    }
+    if (!e.role || e.role.length < 4) errors.push(`${tag} 缺少 role：这个 ETF 在组合里干什么用`);
+    if (!Array.isArray(e.caveats) || e.caveats.length === 0) {
+      errors.push(`${tag} 必须至少写一条 caveat`);
+    }
+
+    // 费率可以为空，但必须说明为什么空——不能静默缺失
+    if (e.fee?.total == null && (!e.fee?.note || e.fee.note.length < 6)) {
+      errors.push(`${tag} 费率为空时必须用 fee.note 说明原因`);
+    }
+
+    // 溢价与价格/净值必须自洽，抓录入错误
+    if (e.premium != null) {
+      if (e.premium < -20 || e.premium > 60) errors.push(`${tag} premium=${e.premium}% 超出合理范围`);
+      if (typeof e.price === 'number' && typeof e.nav === 'number' && e.nav > 0) {
+        const implied = (e.price / e.nav - 1) * 100;
+        if (Math.abs(implied - e.premium) > 0.5) {
+          errors.push(
+            `${tag} 溢价 ${e.premium}% 与 price/nav 推算的 ${implied.toFixed(2)}% 不一致，检查是否取错日期或净值`
+          );
+        }
+      }
+      // 高溢价必须有解释，不能只填个数字
+      if (e.premium > 2 && (e.caveats?.length ?? 0) < 2) {
+        errors.push(`${tag} 溢价 ${e.premium}% 超过 2%，但 caveats 少于 2 条——高溢价必须给出原因`);
+      }
+    }
+
+    // 状态与派生结果对齐（ETF 的 status 不落库，这里只校验派生结果本身不会异常）
+    const idx = (etfs.indices ?? []).find((i) => i.id === e.indexId);
+    const derived = deriveEtfStatus(e, idx);
+    if (!['buy', 'watch', 'avoid'].includes(derived)) {
+      errors.push(`${tag} 派生状态异常：${derived}`);
+    }
+    etfTally[derived] += 1;
+    if (derived === 'buy' && e.premium == null) {
+      errors.push(`${tag} 被判为可配置，但溢价未取得——成本层不可能通过`);
+    }
+  }
+
+  if ((etfs.etfs ?? []).length === 0) warnings.push('ETF 列表为空');
+}
+
 /* ---------- 行业 ---------- */
 const sectors = read('data/sectors.json');
 for (const s of sectors.sectors ?? []) {
@@ -221,12 +307,18 @@ const line = '─'.repeat(56);
 console.log(line);
 console.log(`数据校验 · ${today.toISOString().slice(0, 10)}`);
 console.log(line);
-console.log(`市场 ${markets.markets?.length ?? 0} · 个股 ${stocks.stocks?.length ?? 0} · 行业 ${sectors.sectors?.length ?? 0}`);
+console.log(
+  `市场 ${markets.markets?.length ?? 0} · 个股 ${stocks.stocks?.length ?? 0} · ETF ${etfs.etfs?.length ?? 0} · 行业 ${sectors.sectors?.length ?? 0}`
+);
 if (rf != null) {
   console.log(`绝对锚分母：10Y 国债 ${rf}%（${rfMeta.asOf}）· 利差下限 ${ANCHOR_MIN_SPREAD}pct · 派息率上限 ${PAYOUT_MAX}%`);
   console.log(
     `三层过滤器：可买入 ${statusTally.buy} · 需观察 ${statusTally.watch} · 便宜但不买 ${statusTally.avoid}`
   );
+  if (globalThis.__etfTally) {
+    const t2 = globalThis.__etfTally;
+    console.log(`ETF 三层：可配置 ${t2.buy} · 需观察 ${t2.watch} · 回避 ${t2.avoid}`);
+  }
   console.log(
     `要求折价：高确定性 -${(REQUIRED_DISCOUNT.high * 100).toFixed(0)}% · 中 -${(
       REQUIRED_DISCOUNT.medium * 100

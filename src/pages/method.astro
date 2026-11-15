@@ -154,7 +154,70 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     </div>
   </div>
 
-  <div class="section-head"><h2>五、数据来源（{data.meta.snapshot} 快照）</h2></div>
+
+  <div class="section-head">
+    <h2>五、ETF 为什么用另一套尺子</h2>
+    <span class="hint">同一个指数有多个 ETF，先比成本，再谈估值</span>
+  </div>
+  <div class="card">
+    <p class="muted">
+      个股的「安全边际」来自价格低于价值，可以等。ETF 不能照搬，因为 ETF 的额外收益有两个来源，
+      重要程度完全不同：一是<strong>底层指数变便宜</strong>，这要等市场；二是<strong>你不再为它付溢价</strong>，这是当下就能执行的。
+      后者是确定性的，所以放在第一层。
+    </p>
+    <p class="muted" style="margin-bottom:0">
+      最典型的例子：标普500LOF（161125）在 2026-11-06 收 3.182 元、净值 2.9991 元，溢价 6.10%，
+      且自 2026-03-19 起暂停申购。这意味着「按净值买入」的通道已经关闭，场内 6% 的溢价没有套利机制去平抑它。
+      把 6.10% 换算成费率——除以同类最低综合费率 0.80%/年——等于 <strong>7.6 年</strong>的持有成本。
+      为了省每年 0.8% 去付掉 6.1%，要 7.6 年才回本。这个换算比任何估值分位都直接。
+    </p>
+  </div>
+
+  <div class="card" style="overflow-x:auto;margin-top:14px">
+    <table>
+      <thead>
+        <tr><th>层</th><th>个股判据</th><th>ETF 判据</th><th>为什么换</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>①</strong></td>
+          <td class="small">股息率 − 10Y国债 ≥ 2pct，派息率 &lt; 70%</td>
+          <td class="small">折溢价 ≤ 1%（QDII 2%），综合费率 ≤ 1.0%/年</td>
+          <td class="small">ETF 没有「股息」这个抓手，但它有另一个确定性损耗：过路费</td>
+        </tr>
+        <tr>
+          <td><strong>②</strong></td>
+          <td class="small">安全边际 ≥ 确定性对应门槛</td>
+          <td class="small">底层指数 PE 分位 ≤ 35 通过 / 35–65 中性 / &gt;65 偏贵</td>
+          <td class="small">ETF 不分好坏，只分跟谁；贵不贵看指数，不看 ETF 价格</td>
+        </tr>
+        <tr>
+          <td><strong>③</strong></td>
+          <td class="small">反证条件是否已触发</td>
+          <td class="small">申购状态 + 日均成交额</td>
+          <td class="small">个股的硬伤是经营恶化；ETF 的硬伤是「买不到」</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="small dim" style="margin:14px 0 0">
+      状态派生也不同：ETF 不设「便宜但不买」，因为它的复合失败通常是「指数便宜但工具贵」，等溢价收敛即可，归入需观察；
+      只有<strong>两项以上明确不合格</strong>才判回避。这条规则是为了区分「缺数据」和「数据不合格」——
+      快照里没取到盘中折溢价是常态，不能因为不知道就判回避，那等于用缺失值做空头结论。
+    </p>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h3 style="margin-top:0">还没解决的两件事</h3>
+    <ul class="clean" style="padding-left:20px;line-height:1.9;margin:0">
+      <li><strong>折溢价是盘中变量。</strong>静态快照只能给出定性判断（「这只长期有溢价」），给不出「现在能不能买」。
+        真正的执行必须在交易软件里看实时 IOPV，面板只能提醒「去哪看、看什么」。</li>
+      <li><strong>跨市场 PE 口径不可比。</strong>标普500 的 PE 在不同来源分别是 23.70、27.57、22.92，
+        分位在 41% 到 73% 之间摆动（见 ETF 页的口径提示）。这不是数据错误，是「报告盈利 / 营运盈利 / 市值加权 / 等权」的差异。
+        所以美股指数的分位只能当参考，不能当结论。</li>
+    </ul>
+  </div>
+
+  <div class="section-head"><h2>六、数据来源（{data.meta.snapshot} 快照）</h2></div>
   <div class="card">
     <ul class="clean" style="padding-left:20px">
       {data.meta.sources.map((s) => (
@@ -166,7 +229,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     </p>
   </div>
 
-  <div class="section-head"><h2>六、怎么维护</h2></div>
+  <div class="section-head"><h2>七、怎么维护</h2></div>
   <div class="card">
     <ul class="clean" style="padding-left:20px">
       <li>市场数据：<span class="mono">data/markets.json</span>，改完提交即触发部署。</li>

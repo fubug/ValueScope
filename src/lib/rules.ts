@@ -523,3 +523,233 @@ export const STATE_LABEL: Record<CheckState, string> = {
 };
 
 export { STATE_RANK };
+
+/* ============================================================
+ * ETF
+ * ------------------------------------------------------------
+ * ETF 与个股的定价逻辑不同，三层检查的内容也不同：
+ *   ① 成本层：折溢价 + 综合费率 —— 这是「确定性的损耗」，不依赖任何预测
+ *   ② 估值层：底层指数的历史分位 —— 便宜不便宜看这里，不看 ETF 自己的价格
+ *   ③ 可用层：申购状态 + 流动性 —— 工具坏了，估值再便宜也执行不了
+ * 关键区别：个股的「安全边际」靠价格下跌获得；ETF 的额外收益很大一部分
+ * 靠「不付溢价」获得。溢价 6% 相当于好几年费率，这个换算比看分位更实用。
+ * ============================================================ */
+
+export type EtfType = 'QDII-LOF' | 'QDII-ETF' | 'ETF' | 'LOF';
+export type Subscription = 'open' | 'limited' | 'suspended';
+
+export interface EtfIndex {
+  id: string;
+  name: string;
+  code: string;
+  currency: string;
+  pe: number | null;
+  pePct: { y3?: number | null; y5?: number | null; y10?: number | null };
+  pb: number | null;
+  pbPct: { y3?: number | null; y5?: number | null; y10?: number | null };
+  dividendYield: number | null;
+  asOf: string;
+  peCaveat?: string;
+  sources: string[];
+}
+
+export interface Etf {
+  code: string;
+  name: string;
+  fullName: string;
+  exchange: 'SH' | 'SZ';
+  type: EtfType;
+  indexId: string;
+  price: number | null;
+  nav: number | null;
+  priceAsOf: string | null;
+  navAsOf: string | null;
+  /** 溢价率（%），正为溢价、负为折价。null = 未取得，不填推测值 */
+  premium: number | null;
+  premiumNote: string;
+  fee: { manage: number | null; custody: number | null; total: number | null; note: string };
+  scale: number | null;
+  scaleAsOf: string | null;
+  /** 日均成交额（亿元） */
+  turnover: number | null;
+  turnoverAsOf: string | null;
+  subscription: Subscription;
+  subscriptionNote: string;
+  trackingError: number | null;
+  role: string;
+  caveats: string[];
+  lastReviewed: string;
+}
+
+export interface EtfsFile {
+  meta: { snapshot: string; note: string; riskFree: RiskFree; disclaimer: string };
+  indices: EtfIndex[];
+  etfs: Etf[];
+}
+
+/** 境内 ETF 溢价容忍度（%） */
+export const ETF_PREMIUM_MAX = 1.0;
+/** QDII 因额度限制、申赎不畅，放宽到 2%，但仍不该为溢价付钱 */
+export const ETF_PREMIUM_MAX_QDII = 2.0;
+/** 综合费率上限（%/年）：管理 + 托管 */
+export const ETF_FEE_MAX = 1.0;
+/** 日均成交额下限（亿元），低于此滑点会吃掉收益 */
+export const ETF_TURNOVER_MIN = 0.5;
+
+export const SUBSCRIPTION_LABEL: Record<Subscription, string> = {
+  open: '正常申赎',
+  limited: '额度受限',
+  suspended: '暂停申购',
+};
+
+export const isQdii = (e: Etf) => e.type === 'QDII-LOF' || e.type === 'QDII-ETF';
+
+export function premiumLimit(e: Etf): number {
+  return isQdii(e) ? ETF_PREMIUM_MAX_QDII : ETF_PREMIUM_MAX;
+}
+
+/** 溢价相当于多少年的综合费率——把「贵一点」翻译成可比较的时间单位 */
+export function premiumInFeeYears(e: Etf): number | null {
+  if (e.premium == null || e.fee.total == null || e.fee.total <= 0) return null;
+  return e.premium / e.fee.total;
+}
+
+/** 底层指数的主分位：PE 10 年优先，其次 5 年、3 年 */
+export function indexPercentile(idx: EtfIndex | undefined): { value: number; basis: string } | null {
+  if (!idx) return null;
+  const order: Array<[keyof EtfIndex['pePct'], string]> = [
+    ['y10', 'PE 10 年分位'],
+    ['y5', 'PE 5 年分位'],
+    ['y3', 'PE 3 年分位'],
+  ];
+  for (const [w, label] of order) {
+    const v = idx.pePct[w];
+    if (typeof v === 'number') return { value: v, basis: label };
+  }
+  return null;
+}
+
+export function etfThreeLayer(e: Etf, idx: EtfIndex | undefined): LayerResult[] {
+  const out: LayerResult[] = [];
+  const limit = premiumLimit(e);
+
+  /* --- ① 成本层 --- */
+  {
+    let state: CheckState;
+    let headline: string;
+    const feeYears = premiumInFeeYears(e);
+    if (e.premium == null) {
+      state = 'partial';
+      headline = '缺折溢价数据，成本无法验证';
+    } else if (e.premium > limit) {
+      state = 'fail';
+      headline = `溢价 ${e.premium.toFixed(2)}%，超过 ${limit}% 容忍度${
+        feeYears != null ? `，等于先付 ${feeYears.toFixed(1)} 年费率` : ''
+      }`;
+    } else if (e.fee.total == null) {
+      state = 'partial';
+      headline = `溢价 ${e.premium.toFixed(2)}% 在容忍度内，但费率未取得`;
+    } else if (e.fee.total > ETF_FEE_MAX) {
+      state = 'partial';
+      headline = `溢价 ${e.premium.toFixed(2)}% 尚可，但费率 ${e.fee.total}% 偏高`;
+    } else {
+      state = 'pass';
+      headline = `溢价 ${e.premium.toFixed(2)}%，综合费率 ${e.fee.total}%`;
+    }
+    out.push({
+      layer: 1,
+      name: '成本层：溢价 + 费率',
+      state,
+      headline,
+      detail: `${e.premiumNote}｜费率：${e.fee.note}`,
+    });
+  }
+
+  /* --- ② 估值层 --- */
+  {
+    const p = indexPercentile(idx);
+    let state: CheckState;
+    let headline: string;
+    if (!p) {
+      state = 'fail';
+      headline = '底层指数缺估值分位';
+    } else if (p.value <= 35) {
+      state = 'pass';
+      headline = `${idx!.name} ${p.basis} ${p.value.toFixed(0)}，偏便宜`;
+    } else if (p.value <= 65) {
+      state = 'partial';
+      headline = `${idx!.name} ${p.basis} ${p.value.toFixed(0)}，中性`;
+    } else {
+      state = 'fail';
+      headline = `${idx!.name} ${p.basis} ${p.value.toFixed(0)}，偏贵`;
+    }
+    out.push({
+      layer: 2,
+      name: '估值层：底层指数分位',
+      state,
+      headline,
+      detail: idx?.peCaveat ?? '未取得该指数的口径说明',
+    });
+  }
+
+  /* --- ③ 可用层 --- */
+  {
+    let state: CheckState;
+    let headline: string;
+    if (e.subscription === 'suspended') {
+      if (e.premium != null && e.premium > limit) {
+        state = 'fail';
+        headline = '申购关闭 + 溢价超容忍度：溢价失去套利回归机制';
+      } else {
+        state = 'partial';
+        headline = '申购关闭，只能场内溢价成交';
+      }
+    } else if (e.subscription === 'limited') {
+      state = 'partial';
+      headline = '额度受限，能否按净值买入需逐日确认';
+    } else if (e.turnover == null) {
+      state = 'partial';
+      headline = '可申赎，但流动性未取得';
+    } else if (e.turnover < ETF_TURNOVER_MIN) {
+      state = 'partial';
+      headline = `日均成交 ${e.turnover} 亿，低于 ${ETF_TURNOVER_MIN} 亿，滑点风险`;
+    } else {
+      state = 'pass';
+      headline = `正常申赎，日均成交 ${e.turnover} 亿`;
+    }
+    out.push({
+      layer: 3,
+      name: '可用层：申购状态 + 流动性',
+      state,
+      headline,
+      detail: `${e.subscriptionNote}｜规模 ${e.scale == null ? '—' : e.scale + ' 亿'}${
+        e.scaleAsOf ? `（${e.scaleAsOf}）` : ''
+      }`,
+    });
+  }
+
+  return out;
+}
+
+/**
+ * ETF 状态派生：三层全过才「可配置」。
+ * 关键区分：「缺数据」与「数据不合格」不是一回事。
+ *   - 两项及以上明确 fail → 回避（例如高溢价 + 申购关闭，这是真实缺陷）
+ *   - 只是数据没取到（partial）→ 需观察，并在页面标出「待核几项」
+ * 不能因为「不知道」就判回避，那等于用缺失值做空头结论。
+ * ETF 也不设「便宜但不买」——它的复合失败通常是「指数便宜但工具贵」，
+ * 等溢价收敛即可，归入需观察。
+ */
+export function deriveEtfStatus(e: Etf, idx: EtfIndex | undefined): 'buy' | 'watch' | 'avoid' {
+  const layers = etfThreeLayer(e, idx);
+  const passed = layers.filter((l) => l.state === 'pass').length;
+  const failed = layers.filter((l) => l.state === 'fail').length;
+  if (passed === 3) return 'buy';
+  if (failed >= 2) return 'avoid';
+  return 'watch';
+}
+
+/** 待核项数：partial 的层数。页面要给用户看到「这个结论有多结实」 */
+export function etfPending(e: Etf, idx: EtfIndex | undefined): number {
+  return etfThreeLayer(e, idx).filter((l) => l.state === 'partial').length;
+}

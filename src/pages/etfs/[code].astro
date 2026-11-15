@@ -1,0 +1,193 @@
+---
+import Base from '../../layouts/Base.astro';
+import etfsData from '../../../data/etfs.json';
+import {
+  etfThreeLayer,
+  deriveEtfStatus,
+  etfPending,
+  indexPercentile,
+  premiumInFeeYears,
+  premiumLimit,
+  isQdii,
+  SUBSCRIPTION_LABEL,
+  STATE_LABEL,
+  STATE_RANK,
+  STATUS_LABEL,
+  type EtfsFile,
+  type Etf,
+  type EtfIndex,
+} from '../../lib/rules';
+
+export function getStaticPaths() {
+  return (etfsData as unknown as EtfsFile).etfs.map((e) => ({
+    params: { code: e.code },
+    props: { e },
+  }));
+}
+
+const data = etfsData as unknown as EtfsFile;
+const { e } = Astro.props as { e: Etf };
+const idx: EtfIndex | undefined = data.indices.find((i) => i.id === e.indexId);
+const base = import.meta.env.BASE_URL.replace(/^\/$/, '').replace(/\/$/, '');
+
+const layers = etfThreeLayer(e, idx);
+const st = deriveEtfStatus(e, idx);
+const pending = etfPending(e, idx);
+const passedCount = layers.filter((l) => l.state === 'pass').length;
+const feeYears = premiumInFeeYears(e);
+const p = indexPercentile(idx);
+
+const STATE_CLASS = { pass: 'cheap', partial: 'fair', fail: 'expensive' } as const;
+const STATE_ICON = { pass: '✓', partial: '△', fail: '✗' } as const;
+const pctColor = (v: number) =>
+  v <= 15 ? 'var(--cheap)' : v <= 35 ? 'var(--fair)' : v <= 65 ? 'var(--muted)' : 'var(--expensive)';
+---
+
+<Base title={`${e.name} ${e.code}`}>
+  <p class="small" style="margin-bottom:8px">
+    <a href={`${base}/etfs/`} class="dim">← ETF 列表</a>
+  </p>
+
+  <h1>{e.name} <span class="mono dim" style="font-size:16px;font-weight:400">{e.exchange} {e.code}</span></h1>
+  <p class="lede">
+    {e.type} · 跟踪 {idx?.name ?? '—'} · 复盘日 {e.lastReviewed}
+    {isQdii(e) && <> · <span class="badge fair">QDII</span></>}
+    <span class={`badge ${st}`} style="margin-left:6px">{STATUS_LABEL[st]}</span>
+    {pending > 0 && <span class="badge unknown" style="margin-left:6px">{pending} 项待核</span>}
+  </p>
+
+  {e.premium != null && e.premium > premiumLimit(e) && (
+    <div class="notice" style="border-color:rgba(255,91,91,.4);margin-top:14px">
+      <strong>溢价 {e.premium.toFixed(2)}%，超过 {premiumLimit(e)}% 容忍度。</strong>
+      这部分钱与 {idx?.name ?? '指数'} 涨跌无关，是买入当下就承担掉的确定性损失。
+      {feeYears != null && (
+        <>
+          {' '}换算成费率：相当于 <strong>{(e.premium / 0.8).toFixed(1)} 年</strong>的 0.8%/年综合费率。
+        </>
+      )}
+    </div>
+  )}
+
+  <div class="section-head">
+    <h2>三层校验</h2>
+    <span class="hint">{passedCount} / 3 通过 · 成本 → 估值 → 可用，顺序不能倒</span>
+  </div>
+  <div class="card" style="padding:0;overflow:hidden">
+    {layers.map((l) => (
+      <div style="display:grid;grid-template-columns:44px 1fr;gap:14px;padding:14px 18px;border-bottom:1px solid var(--line)">
+        <div style="display:flex;justify-content:center;padding-top:1px">
+          <span
+            class={`badge ${STATE_CLASS[l.state]}`}
+            style="width:30px;height:30px;display:grid;place-items:center;font-size:14px;border-radius:8px"
+          >
+            {STATE_ICON[l.state]}
+          </span>
+        </div>
+        <div>
+          <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap">
+            <strong style="font-size:14px">第 {l.layer} 层 · {l.name}</strong>
+            <span style={`font-size:12.5px;color:var(--${l.state === 'pass' ? 'cheap' : l.state === 'partial' ? 'fair' : 'expensive'})`}>
+              {l.headline}
+            </span>
+          </div>
+          <div class="small muted" style="margin-top:5px;line-height:1.65">{l.detail}</div>
+        </div>
+      </div>
+    ))}
+    <div style="padding:12px 18px;background:rgba(255,255,255,.02)" class="small dim">
+      判定口径：境内 ETF 溢价容忍 {1}%、QDII {2}%；综合费率上限 {1}%；日均成交下限 0.5 亿。
+      费率未取得时按「部分通过」处理，不按不合格处理。
+    </div>
+  </div>
+
+  <div class="grid grid-3" style="margin-top:16px">
+    <div class="card">
+      <div class="kv">
+        <span class="k">溢价率</span>
+        <span class="v" style={`color:${e.premium == null ? 'var(--dim)' : e.premium > premiumLimit(e) ? 'var(--expensive)' : 'var(--cheap)'}`}>
+          {e.premium == null ? '待核' : `${e.premium > 0 ? '+' : ''}${e.premium.toFixed(2)}%`}
+        </span>
+        <span class="sub">
+          收盘 {e.price ?? '—'}（{e.priceAsOf ?? '—'}）／净值 {e.nav ?? '—'}（{e.navAsOf ?? '—'}）
+        </span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="kv">
+        <span class="k">综合费率（年）</span>
+        <span class="v">{e.fee.total == null ? '待核' : `${e.fee.total}%`}</span>
+        <span class="sub">{e.fee.note}</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="kv">
+        <span class="k">规模 / 日均成交</span>
+        <span class="v">
+          {e.scale == null ? '待核' : `${e.scale} 亿`}
+        </span>
+        <span class="sub">
+          成交 {e.turnover == null ? '待核' : `${e.turnover} 亿`}{e.turnoverAsOf ? `（${e.turnoverAsOf}）` : ''}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-head"><h2>申购状态</h2><span class="hint">这一项决定「能不能按净值买到」</span></div>
+  <div class="card">
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
+      <span class={`badge ${e.subscription === 'open' ? 'cheap' : e.subscription === 'limited' ? 'fair' : 'expensive'}`}>
+        {SUBSCRIPTION_LABEL[e.subscription]}
+      </span>
+    </div>
+    <p class="muted" style="margin:0">{e.subscriptionNote}</p>
+    {e.subscription === 'suspended' && (
+      <p class="small" style="margin:12px 0 0;padding-top:12px;border-top:1px solid var(--line);color:var(--expensive)">
+        申购关闭时，套利只能单向（卖出存量份额），无法创造新份额来平抑溢价。所以「暂停申购 + 高溢价」是自我强化的，
+        不会自己好起来，除非额度恢复或需求退潮。
+      </p>
+    )}
+  </div>
+
+  <div class="section-head"><h2>底层指数估值</h2><span class="hint">ETF 便宜不便宜，看的是这里</span></div>
+  {idx && (
+    <div class="card">
+      <div class="grid grid-3" style="gap:18px">
+        <div class="kv">
+          <span class="k">{idx.name} PE</span>
+          <span class="v">{idx.pe ?? '—'}</span>
+          <span class="sub" style={p ? `color:${pctColor(p.value)}` : ''}>
+            {p ? `${p.basis} ${p.value.toFixed(0)}` : '分位缺失'}
+          </span>
+        </div>
+        <div class="kv">
+          <span class="k">PB</span>
+          <span class="v">{idx.pb ?? '—'}</span>
+          <span class="sub">
+            10 年分位 {typeof idx.pbPct.y10 === 'number' ? `${idx.pbPct.y10.toFixed(0)}` : '—'}
+          </span>
+        </div>
+        <div class="kv">
+          <span class="k">股息率 / 数据日</span>
+          <span class="v">{idx.dividendYield == null ? '—' : `${idx.dividendYield}%`}</span>
+          <span class="sub mono">{idx.asOf}</span>
+        </div>
+      </div>
+      {idx.peCaveat && (
+        <p class="small muted" style="margin:16px 0 0;padding-top:12px;border-top:1px solid var(--line);line-height:1.75">
+          <strong style="color:var(--fair)">口径提示：</strong>{idx.peCaveat}
+        </p>
+      )}
+      <div class="small dim" style="margin-top:10px">
+        来源：{idx.sources.join('；')}
+      </div>
+    </div>
+  )}
+
+  <div class="section-head"><h2>在组合里的角色</h2></div>
+  <div class="card">
+    <p class="muted" style="margin:0 0 12px">{e.role}</p>
+    <ul class="clean" style="padding-left:20px;line-height:1.85;margin:0">
+      {e.caveats.map((c) => <li>{c}</li>)}
+    </ul>
+  </div>
+</Base>

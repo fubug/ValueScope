@@ -15,6 +15,8 @@ Astro 构建，GitHub Pages 自动部署，数据就是仓库里的 JSON，改�
 | `/markets/[id]` | 单市场详情：5/10/20 年分位、口径问题、判定链、人工结论 |
 | `/stocks` | A 股个股：三层过滤器总表（卡在哪一层一眼可见）+ 按距买入价排序的分组 |
 | `/stocks/[ticker]` | 个股详情：三层校验、合理价值区间、估值方法、反证条件 |
+| `/etfs` | ETF 工具：底层指数估值 + 三层（成本/估值/可用），溢价换算成费率年数 |
+| `/etfs/[code]` | ETF 详情：溢价警示、三层校验、申购状态、指数口径提示 |
 | `/undervalued` | 低估值扫描：破净分布、股息分层，以及「为什么这些板块测不准」 |
 | `/sectors` | 行业看法：每条观点必须带反证条件 |
 | `/method` | 方法论：判定规则、数据来源、已知局限 |
@@ -39,6 +41,7 @@ npm run build   # 构建到 dist/
 |---|---|
 | `data/markets.json` | 市场估值快照。改 `snapshot` 日期，核对分位口径后填入 `percentiles` |
 | `data/stocks.json` | 个股。新增一只必须填 `certainty`（高/中/低确定性）、`payoutRatio`、`anchorNote`、`veto`；status 与买入价自动派生，不要手填 |
+| `data/etfs.json` | ETF 工具。indices 放底层指数估值（必须带 sources 与口径说明），etfs 放工具成本（溢价/费率/申购状态）。溢价为空必须用 note 说明，填了必须与 price/nav 自洽 |
 | `data/screen.json` | 低估值扫描的板块级统计（破净分布、盲区说明），不放个股结论 |
 | `data/sectors.json` | 行业观点，更新 `pePercentileBasis` 的数据日期 |
 

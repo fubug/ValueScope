@@ -1,0 +1,282 @@
+---
+import Base from '../../layouts/Base.astro';
+import etfsData from '../../../data/etfs.json';
+import {
+  etfThreeLayer,
+  deriveEtfStatus,
+  etfPending,
+  indexPercentile,
+  premiumInFeeYears,
+  isQdii,
+  premiumLimit,
+  SUBSCRIPTION_LABEL,
+  STATE_LABEL,
+  STATUS_LABEL,
+  ETF_FEE_MAX,
+  ETF_TURNOVER_MIN,
+  type EtfsFile,
+  type Etf,
+  type EtfIndex,
+} from '../../lib/rules';
+
+const data = etfsData as unknown as EtfsFile;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const idxOf = (id: string) => data.indices.find((i) => i.id === id);
+
+const stOf = (e: Etf) => deriveEtfStatus(e, idxOf(e.indexId));
+const rank = { buy: 0, watch: 1, avoid: 2 } as const;
+const sorted = [...data.etfs].sort((a, b) => {
+  const r = rank[stOf(a)] - rank[stOf(b)];
+  if (r !== 0) return r;
+  return (premiumInFeeYears(a) ?? -1) - (premiumInFeeYears(b) ?? -1);
+});
+
+const STATE_CLASS = { pass: 'cheap', partial: 'fair', fail: 'expensive' } as const;
+
+const groups = [
+  { status: 'buy' as const, hint: '成本、估值、可用三层全部通过——可以按计划配置' },
+  { status: 'watch' as const, hint: '有明确未过项，或关键数据待核——先补数据或等条件' },
+  { status: 'avoid' as const, hint: '两项以上明确不合格——通常是「指数便宜，但工具在收你过路费」' },
+];
+
+// 溢价换算：把「贵一点」翻译成「多少年费率」
+const REF_FEE = 0.8;
+const worst = data.etfs
+  .filter((e) => e.premium != null && e.premium > 2)
+  .sort((a, b) => (b.premium ?? 0) - (a.premium ?? 0));
+const suspendedPremium = data.etfs.filter(
+  (e) => e.subscription === 'suspended' && e.premium != null && (e.premium ?? 0) > premiumLimit(e)
+);
+
+const pctColor = (p: number) =>
+  p <= 15 ? 'var(--cheap)' : p <= 35 ? 'var(--fair)' : p <= 65 ? 'var(--muted)' : 'var(--expensive)';
+---
+
+<Base
+  title="ETF 工具"
+  subtitle="同一个指数有多个 ETF，先比成本，再谈估值。ETF 的三层和个股不同：溢价与费率是确定性的损耗，指数分位是估值判断，申购状态决定能不能执行。"
+>
+  <h1>ETF 工具</h1>
+
+  <div class="notice" style="border-color:rgba(255,91,91,.35)">
+    <strong>先看这一条：场内买高溢价 QDII，等于买入即亏。</strong>
+    标普500LOF（161125）当前溢价 <strong>6.10%</strong>，且自 2026-03-19 起<strong>暂停申购与定投</strong>；
+    纳斯达克100LOF（161130）溢价 <strong>11.23%</strong>，处 60 日 98.33% 分位。
+    申购通道关闭意味着溢价无法靠套利机制回归——这个 6% 可能维持很久，也可能在某天恢复申购时一次性收敛掉。
+    <div style="margin-top:8px">
+      把溢价换成可比较的单位：<strong>6.10% ÷ {REF_FEE}%（同类最低综合费率）≈ 7.6 年费率</strong>。
+      换句话说，为了省每年 0.8% 的费用去场内全额付掉 6.1% 溢价，要 7.6 年才回本；反过来说，等溢价收敛到零，等于白拿 7.6 年的费率。
+    </div>
+  </div>
+
+  <div class="section-head">
+    <h2>底层指数：先看便宜不便宜</h2>
+    <span class="hint">ETF 的价格不重要，它跟踪的指数贵不贵才重要</span>
+  </div>
+  <div class="card" style="overflow-x:auto">
+    <table>
+      <thead>
+        <tr>
+          <th>指数</th>
+          <th class="num">PE</th>
+          <th class="num">PE 分位 3y / 5y / 10y</th>
+          <th class="num">PB</th>
+          <th class="num">PB 分位 10y</th>
+          <th class="num">股息率</th>
+          <th class="num">数据日</th>
+        </tr>
+      </thead>
+      <tbody>
+        {data.indices.map((i) => {
+          const p = indexPercentile(i);
+          return (
+            <tr>
+              <td>
+                <strong>{i.name}</strong>
+                <div class="small dim mono">{i.code} · {i.currency}</div>
+              </td>
+              <td class="num mono">{i.pe ?? '—'}</td>
+              <td class="num mono small">
+                {(['y3', 'y5', 'y10'] as const).map((w, k) => {
+                  const v = i.pePct[w];
+                  return (
+                    <>
+                      {k > 0 && <span class="dim"> / </span>}
+                      <span style={typeof v === 'number' ? `color:${pctColor(v)}` : 'color:var(--dim)'}>
+                        {typeof v === 'number' ? v.toFixed(0) : '—'}
+                      </span>
+                    </>
+                  );
+                })}
+              </td>
+              <td class="num mono">{i.pb ?? '—'}</td>
+              <td class="num mono" style={typeof i.pbPct.y10 === 'number' ? `color:${pctColor(i.pbPct.y10)}` : ''}>
+                {typeof i.pbPct.y10 === 'number' ? `${i.pbPct.y10.toFixed(0)}` : '—'}
+              </td>
+              <td class="num mono">{i.dividendYield == null ? '—' : `${i.dividendYield}%`}</td>
+              <td class="num small dim mono">{i.asOf}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+    <div class="small dim" style="margin:14px 0 0;line-height:1.75">
+      {data.indices
+        .filter((i) => i.peCaveat)
+        .map((i) => (
+          <div style="margin-bottom:8px">
+            <strong style="color:var(--fair)">{i.name} 口径：</strong>{i.peCaveat}
+          </div>
+        ))}
+    </div>
+  </div>
+
+  <div class="section-head">
+    <h2>ETF 三层</h2>
+    <span class="hint">成本 → 估值 → 可用，顺序不能倒：先别付过路费，再谈买什么</span>
+  </div>
+  <div class="card" style="overflow-x:auto">
+    <table>
+      <thead>
+        <tr>
+          <th>工具</th>
+          <th class="num">类型</th>
+          <th class="num">① 成本</th>
+          <th class="num">② 估值</th>
+          <th class="num">③ 可用</th>
+          <th class="num">溢价</th>
+          <th class="num">费率</th>
+          <th class="num">状态</th>
+        </tr>
+      </thead>
+      <tbody>
+        {sorted.map((e) => {
+          const idx = idxOf(e.indexId);
+          const layers = etfThreeLayer(e, idx);
+          const st = stOf(e);
+          const pending = etfPending(e, idx);
+          return (
+            <tr>
+              <td>
+                <a href={`${base}/etfs/${e.code}/`} style="font-weight:550">{e.name}</a>
+                <div class="small dim mono">{e.exchange} {e.code} · {e.indexId === 'spx' ? '标普500' : e.indexId === 'ndx' ? '纳指100' : e.indexId === 'csi-liquor' ? '中证白酒' : '中证医疗'}</div>
+              </td>
+              <td class="num small">{e.type}</td>
+              {layers.map((l) => (
+                <td class="num">
+                  <span class={`badge ${STATE_CLASS[l.state]}`} title={l.detail} style="cursor:help">
+                    {STATE_LABEL[l.state]}
+                  </span>
+                  <div class="dim" style="font-size:11px;margin-top:3px;max-width:15ch;margin-left:auto">{l.headline}</div>
+                </td>
+              ))}
+              <td class="num mono" style={`font-weight:600;color:${e.premium != null && e.premium > 2 ? 'var(--expensive)' : 'var(--muted)'}`}>
+                {e.premium == null ? '—' : `${e.premium > 0 ? '+' : ''}${e.premium.toFixed(2)}%`}
+              </td>
+              <td class="num mono">{e.fee.total == null ? '—' : `${e.fee.total}%`}</td>
+              <td class="num">
+                <span class={`badge ${st}`}>{STATUS_LABEL[st]}</span>
+                {pending > 0 && <div class="dim" style="font-size:10.5px;margin-top:3px">{pending} 项待核</div>}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+    <p class="small dim" style="margin:14px 0 0;line-height:1.75">
+      ① <strong>成本层</strong>：折溢价超过容忍度（境内 1%／QDII 2%）判不合格——因为这部分钱跟指数涨跌无关，
+      是确定性的损耗；综合费率上限 {ETF_FEE_MAX}%/年。<br />
+      ② <strong>估值层</strong>：只看底层指数 PE 分位（≤35 通过 / 35–65 中性 / &gt;65 偏贵），不看 ETF 自己的价格。<br />
+      ③ <strong>可用层</strong>：申购状态 + 日均成交额（下限 {ETF_TURNOVER_MIN} 亿）。工具执行不了，前两层都白算。<br />
+      <strong>关于「待核」</strong>：标为「部分」的层不一定是坏消息，多数是快照里没取到折溢价（需要盘中 IOPV）。
+      缺数据不能当不合格用，所以状态上单列，不并进「回避」。
+    </p>
+  </div>
+
+  <div class="section-head">
+    <h2>溢价的真实代价</h2>
+    <span class="hint">这一栏比估值分位更值得看</span>
+  </div>
+  <div class="grid grid-3">
+    {worst.map((e) => {
+      const years = premiumInFeeYears(e);
+      return (
+        <div class="card" style="border-color:rgba(255,91,91,.28)">
+          <div class="kv">
+            <span class="k">{e.name} 溢价</span>
+            <span class="v" style="color:var(--expensive)">{e.premium?.toFixed(2)}%</span>
+            <span class="sub">
+              相对 {REF_FEE}%/年 费率 = <strong style="color:var(--expensive)">{((e.premium ?? 0) / REF_FEE).toFixed(1)} 年</strong>
+              的持有成本
+            </span>
+            <span class="sub" style="margin-top:6px;color:var(--muted)">{e.premiumNote}</span>
+          </div>
+        </div>
+      );
+    })}
+  </div>
+
+  {suspendedPremium.length > 0 && (
+    <div class="notice" style="margin-top:14px">
+      <strong>这两只的问题是同一个机制：</strong>QDII 额度用尽 → 暂停申购 → 新增需求只能在场内抢存量份额 → 溢价抬升 →
+      溢价本身又吸引套利资金进场 → 但因为不能申购，套利只能单向（卖出持有的份额），无法创造新份额平抑价格。
+      所以「暂停申购 + 高溢价」是一个自我强化的组合，不会自己好起来，除非额度恢复或需求退潮。
+      <div style="margin-top:6px" class="small dim">
+        受影响的：{suspendedPremium.map((e) => `${e.name}（${e.code}）`).join('、')}
+      </div>
+    </div>
+  )}
+
+  {groups.map((g) => {
+    const list = sorted.filter((e) => stOf(e) === g.status);
+    if (list.length === 0) return null;
+    return (
+      <>
+        <div class="section-head">
+          <h2>
+            <span class={`badge ${g.status}`}>{STATUS_LABEL[g.status]}</span>
+            <span style="font-size:14px;font-weight:400;color:var(--muted);margin-left:10px">{g.hint}</span>
+          </h2>
+          <span class="hint">{list.length} 只</span>
+        </div>
+        <div class="card" style="overflow-x:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>工具</th>
+                <th class="num">规模（亿）</th>
+                <th class="num">日均成交（亿）</th>
+                <th class="num">申购状态</th>
+                <th>在组合里的角色</th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((e) => (
+                <tr>
+                  <td>
+                    <a href={`${base}/etfs/${e.code}/`} style="font-weight:550">{e.name}</a>
+                    <div class="small dim mono">{e.fullName}</div>
+                  </td>
+                  <td class="num mono">{e.scale ?? '—'}</td>
+                  <td class="num mono">{e.turnover ?? '—'}</td>
+                  <td class="num">
+                    <span class={`badge ${e.subscription === 'open' ? 'cheap' : e.subscription === 'limited' ? 'fair' : 'expensive'}`}>
+                      {SUBSCRIPTION_LABEL[e.subscription]}
+                    </span>
+                  </td>
+                  <td class="small muted" style="max-width:34ch">{e.role}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </>
+    );
+  })}
+
+  <div class="notice info" style="margin-top:28px">
+    <strong>为什么 ETF 不用「安全边际」这个词</strong>：个股的安全边际来自价格相对价值打折，可以等；ETF 的额外收益有两个来源——
+    指数本身变便宜，以及<strong>你不再为它付溢价</strong>。后者是确定性的、当下可执行的，前者要等市场。
+    所以这一页把「不付溢价」放在第一层，而不是当成一个提示。
+  </div>
+</Base>
