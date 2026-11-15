@@ -6,6 +6,7 @@ import {
   deriveEtfStatus,
   etfPending,
   indexPercentile,
+  percentileReliability,
   premiumInFeeYears,
   isQdii,
   premiumLimit,
@@ -32,6 +33,29 @@ const sorted = [...data.etfs].sort((a, b) => {
 });
 
 const STATE_CLASS = { pass: 'cheap', partial: 'fair', fail: 'expensive' } as const;
+
+/**
+ * 卡点分布：把「需观察」拆开。
+ * 13 只都是需观察，但「指数贵」「工具贵」「数据没取到」是三件完全不同的事，
+ * 混成一个数字会让人以为「全部不能买」，那正是这个面板要避免的误读。
+ */
+const blockers = data.etfs.map((e) => {
+  const L = etfThreeLayer(e, idxOf(e.indexId));
+  const fails = L.filter((l) => l.state === 'fail');
+  const partials = L.filter((l) => l.state === 'partial');
+  let kind: 'ready' | 'evidence' | 'one-fail' | 'hard-fail';
+  if (fails.length === 0 && partials.length === 0) kind = 'ready';
+  else if (fails.length === 0) kind = 'evidence';
+  else if (fails.length === 1) kind = 'one-fail';
+  else kind = 'hard-fail';
+  return { e, kind, fails, partials };
+});
+const blockerCount = {
+  ready: blockers.filter((b) => b.kind === 'ready').length,
+  evidence: blockers.filter((b) => b.kind === 'evidence').length,
+  oneFail: blockers.filter((b) => b.kind === 'one-fail').length,
+  hardFail: blockers.filter((b) => b.kind === 'hard-fail').length,
+};
 
 const groups = [
   { status: 'buy' as const, hint: '成本、估值、可用三层全部通过——可以按计划配置' },
@@ -99,6 +123,7 @@ const divergences = data.indices
           <th class="num">PB</th>
           <th class="num">PB 分位 10y</th>
           <th class="num">股息率</th>
+          <th>分位可信度</th>
           <th class="num">数据日</th>
         </tr>
       </thead>
@@ -130,12 +155,35 @@ const divergences = data.indices
                 {typeof i.pbPct.y10 === 'number' ? `${i.pbPct.y10.toFixed(0)}` : '—'}
               </td>
               <td class="num mono">{i.dividendYield == null ? '—' : `${i.dividendYield}%`}</td>
+              <td class="small">
+                {(() => {
+                  const rel = p ? percentileReliability(i, p.window, i.asOf) : null;
+                  if (!rel) return <span class="dim">—</span>;
+                  const color =
+                    rel.level === 'low' ? 'var(--expensive)' : rel.level === 'medium' ? 'var(--fair)' : 'var(--cheap)';
+                  const label = rel.level === 'low' ? '低' : rel.level === 'medium' ? '中' : '高';
+                  return (
+                    <span style={`color:${color}`} title={rel.reason}>
+                      {label}
+                    </span>
+                  );
+                })()}
+              </td>
               <td class="num small dim mono">{i.asOf}</td>
             </tr>
           );
         })}
       </tbody>
     </table>
+    <div class="small" style="margin:14px 0 0;padding:12px;background:var(--panel-2);border-left:2px solid var(--fair);border-radius:0 4px 4px 0">
+      <strong>「分位可信度」这一列是什么：</strong>
+      <span class="dim">
+        分位低只说明「比自己过去便宜」，前提是过去那段样本与现在是同一个东西。两种情况会破坏这个前提——
+        指数发布不足 10 年却用了 10 年分位（那段历史是回溯模拟的），以及编制方法近期大改（变更前后不是同一个指数）。
+        可信度为「低」时，即使分位通过，估值层也只算「部分通过」，不会因为便宜就给出可配置的结论。
+        鼠标悬停可以看到具体原因。
+      </span>
+    </div>
     <div class="small dim" style="margin:14px 0 0;line-height:1.75">
       {data.indices
         .filter((i) => i.peCaveat)
@@ -203,6 +251,27 @@ const divergences = data.indices
     <h2>ETF 三层</h2>
     <span class="hint">成本 → 估值 → 可用，顺序不能倒：先别付过路费，再谈买什么</span>
   </div>
+
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+    {[
+      { n: blockerCount.ready, label: '三层全过', sub: '可按计划配置', color: 'var(--cheap)' },
+      { n: blockerCount.evidence, label: '只是证据不齐', sub: '不贵，但还证明不了便宜', color: 'var(--fair)' },
+      { n: blockerCount.oneFail, label: '一层明确不合格', sub: '贵 / 工具贵 / 买不到，选其一', color: 'var(--muted)' },
+      { n: blockerCount.hardFail, label: '两层以上不合格', sub: '真实缺陷，回避', color: 'var(--expensive)' },
+    ].map((b) => (
+      <div class="card" style="padding:12px 14px">
+        <div class="mono" style={`font-size:24px;font-weight:600;color:${b.color}`}>{b.n}</div>
+        <div class="small" style="font-weight:550;margin-top:2px">{b.label}</div>
+        <div class="small dim" style="margin-top:2px;line-height:1.5">{b.sub}</div>
+      </div>
+    ))}
+  </div>
+  <p class="small dim" style="margin:-4px 0 14px;line-height:1.75">
+    这四格比「可配置 / 需观察 / 回避」三个状态更有用：{data.etfs.length} 只里有 {blockerCount.evidence} 只
+    并不是「贵」，而是<strong>便宜的证明链不完整</strong>——分位样本不可比、或折溢价没取到。
+    这两类要分开看，因为前者等指数结构稳定下来就会消失，后者补一次数据就能消失，
+    而「贵」只能等价格。
+  </p>
   <div class="card" style="overflow-x:auto">
     <table>
       <thead>
@@ -227,7 +296,7 @@ const divergences = data.indices
             <tr>
               <td>
                 <a href={`${base}/etfs/${e.code}/`} style="font-weight:550">{e.name}</a>
-                <div class="small dim mono">{e.exchange} {e.code} · {e.indexId === 'spx' ? '标普500' : e.indexId === 'ndx' ? '纳指100' : e.indexId === 'csi-liquor' ? '中证白酒' : '中证医疗'}</div>
+                <div class="small dim mono">{e.exchange} {e.code} · {idxOf(e.indexId)?.name ?? e.indexId}</div>
               </td>
               <td class="num small">{e.type}</td>
               {layers.map((l) => (
@@ -294,6 +363,26 @@ const divergences = data.indices
       </div>
     </div>
   )}
+
+  <div class="card" style="margin-top:14px;border-left:2px solid var(--expensive)">
+    <h3 style="margin-top:0">反过来也有陷阱：QDII 的「折价」多半是假的</h3>
+    <p class="muted" style="margin-top:0">
+      很多行情软件会显示恒生科技 ETF「折价 2.3%」，看着像捡钱。但它算的是
+      <span class="mono">当日价格 ÷ 最新公布净值 − 1</span>，而 QDII 的净值 <strong>T+1 才确认</strong>。
+      港股当天涨 5%、价格跟上了、净值还停在昨天，除出来的就是两三个点的假折价。
+    </p>
+    <div class="small" style="background:var(--panel-2);padding:10px 12px;border-radius:4px;line-height:1.8">
+      <strong>同一个时点、同一只产品，两个口径差 2 个百分点：</strong><br />
+      恒生科技ETF华夏（513180）2026-11-05：价格 0.515 ÷ 净值 0.5222 − 1 = <span style="color:var(--expensive)">−2.34%（假折价）</span><br />
+      同一天交易所 IOPV 口径：<span style="color:var(--cheap)">−0.27%（真折价）</span>
+    </div>
+    <p class="small dim" style="margin:10px 0 0">
+      结论：<strong>QDII 的折溢价只能看交易所 IOPV，不能看「价格 ÷ 净值」</strong>。
+      本页对这几只产品不填溢价率，就是因为拿不到同一时点的价格与 IOPV 配对——
+      与其填一个会误导人的 −2.3%，不如标「待核」。
+      这也解释了为什么恒生科技的四只 ETF 成本层是「部分」：不是工具坏了，是数据配不上。
+    </p>
+  </div>
 
   {groups.map((g) => {
     const list = sorted.filter((e) => stOf(e) === g.status);

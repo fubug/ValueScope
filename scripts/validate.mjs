@@ -14,6 +14,7 @@ import { dirname, join } from 'node:path';
 import {
   deriveEtfStatus,
   deriveStatus,
+  percentileReliability,
   threeLayer,
   marginOfSafety,
   buyZoneOf,
@@ -214,6 +215,7 @@ const etfs = read('data/etfs.json');
   globalThis.__etfTally = etfTally;
   const SUBS = ['open', 'limited', 'suspended'];
   const indexIds = new Set();
+  const missingInception = [];
 
   for (const i of etfs.indices ?? []) {
     const tag = `index[${i.id ?? '?'}]`;
@@ -261,6 +263,49 @@ const etfs = read('data/etfs.json');
     ) {
       warnings.push(`${tag} PE/PB 分位差 ${(i.pePct.y10 - i.pbPct.y10).toFixed(0)}pct，但没有 roe，背离无法解释`);
     }
+
+    /* ---- 分位可信度：防止「拿一个不可比的分位当便宜的证据」 ---- */
+    const yearsBetween = (a, b) => (new Date(b).getTime() - new Date(a).getTime()) / (365.25 * 864e5);
+    if (i.inceptionDate != null) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(i.inceptionDate)) {
+        errors.push(`${tag} inceptionDate 格式应为 YYYY-MM-DD，实际 ${i.inceptionDate}`);
+      } else if (new Date(i.inceptionDate) > new Date(i.asOf)) {
+        errors.push(`${tag} inceptionDate ${i.inceptionDate} 晚于 asOf ${i.asOf}`);
+      } else {
+        const age = yearsBetween(i.inceptionDate, i.asOf);
+        for (const [w, span] of [['y3', 3], ['y5', 5], ['y10', 10]]) {
+          if (typeof i.pePct?.[w] === 'number' && age < span * 0.5) {
+            errors.push(
+              `${tag} 发布时间 ${age.toFixed(1)} 年，却填了 ${w} 分位——样本量不足一半，这个分位不可能是真实统计出来的`
+            );
+          }
+        }
+        if (typeof i.pePct?.y10 === 'number' && age < 10 && (!i.peCaveat || i.peCaveat.length < 100)) {
+          errors.push(
+            `${tag} 发布仅 ${age.toFixed(1)} 年却用 10 年分位，必须在 peCaveat 里说明「哪一段是回溯模拟」，否则读者会以为这十年真实存在过`
+          );
+        }
+      }
+    } else if (typeof i.pePct?.y10 === 'number') {
+      missingInception.push(`${i.id}(${i.name})`);
+    }
+
+    for (const c of i.methodologyChanges ?? []) {
+      if (!c.date || !c.summary) errors.push(`${tag} methodologyChanges 每条必须有 date 与 summary`);
+      if (c.date && i.inceptionDate && new Date(c.date) < new Date(i.inceptionDate)) {
+        errors.push(`${tag} 编制变更日期 ${c.date} 早于指数发布日 ${i.inceptionDate}`);
+      }
+      if (c.summary && c.summary.length < 20) {
+        warnings.push(`${tag} 编制变更说明过短，读者无法据此判断影响`);
+      }
+    }
+  }
+
+  // 缺发布日就无法判断 10 年分位里有几年是回溯的。汇总成一条，不逐只刷屏。
+  if (missingInception.length) {
+    warnings.push(
+      `以下指数填了 10 年分位但缺 inceptionDate，无法验证分位是否含回溯段：${missingInception.join('、')}`
+    );
   }
 
   for (const e of etfs.etfs ?? []) {

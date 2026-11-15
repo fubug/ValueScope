@@ -550,6 +550,10 @@ export interface EtfIndex {
   dividendYield: number | null;
   /** ROE（%）= PB / PE。PE 分位与 PB 分位的背离就是它造成的，缺了它无法解释背离 */
   roe?: number | null;
+  /** 指数实际发布日期。缺省视为历史足够长；填了就用来判断「10 年分位里有几年是回溯的」 */
+  inceptionDate?: string | null;
+  /** 编制方法重大变更。变更前后不是同一个指数，分位序列在此处断开 */
+  methodologyChanges?: Array<{ date: string; summary: string }> | null;
   asOf: string;
   peCaveat?: string;
   sources: string[];
@@ -617,7 +621,9 @@ export function premiumInFeeYears(e: Etf): number | null {
 }
 
 /** 底层指数的主分位：PE 10 年优先，其次 5 年、3 年 */
-export function indexPercentile(idx: EtfIndex | undefined): { value: number; basis: string } | null {
+export function indexPercentile(
+  idx: EtfIndex | undefined
+): { value: number; basis: string; window: 'y3' | 'y5' | 'y10' } | null {
   if (!idx) return null;
   const order: Array<[keyof EtfIndex['pePct'], string]> = [
     ['y10', 'PE 10 年分位'],
@@ -626,10 +632,66 @@ export function indexPercentile(idx: EtfIndex | undefined): { value: number; bas
   ];
   for (const [w, label] of order) {
     const v = idx.pePct[w];
-    if (typeof v === 'number') return { value: v, basis: label };
+    if (typeof v === 'number') return { value: v, basis: label, window: w as 'y3' | 'y5' | 'y10' };
   }
   return null;
 }
+
+export interface PctReliability {
+  level: 'high' | 'medium' | 'low';
+  reason: string;
+}
+
+const YEARS = (from: string, to: string) =>
+  (new Date(to).getTime() - new Date(from).getTime()) / (365.25 * 864e5);
+
+/**
+ * 分位可信度——这一层是为了防止「拿一个不可比的分位当便宜的证据」。
+ *
+ * 分位通过 ≠ 便宜。分位只说明「比自己过去便宜」，前提是过去那段样本与现在是同一个东西。
+ * 有两种情况会破坏这个前提，而且都很常见：
+ *   ① 指数发布时间不足 10 年，却用了 10 年分位 —— 那段历史是回溯模拟出来的，
+ *      成分股按今天的规则倒推，不等于当年真实存在过的组合。
+ *   ② 编制方法近期大改（成分数量、选股规则）—— 变更前后不是同一个指数，
+ *      拿变更前的分位去衡量变更后的估值，等于用旧尺子量新东西。
+ *
+ * 判定：样本不足 10 年 → low（分位通过也只算 partial）；编制有变更 → medium（通过但标注）。
+ */
+export function percentileReliability(
+  idx: EtfIndex | undefined,
+  window: 'y3' | 'y5' | 'y10',
+  refDate: string
+): PctReliability | null {
+  if (!idx) return null;
+  const span = window === 'y10' ? 10 : window === 'y5' ? 5 : 3;
+  const reasons: string[] = [];
+  let level: 'high' | 'medium' | 'low' = 'high';
+
+  if (idx.inceptionDate) {
+    const age = YEARS(idx.inceptionDate, refDate);
+    if (age < span) {
+      level = 'low';
+      const backfilled = Math.max(0, span - age);
+      reasons.push(
+        `指数 ${idx.inceptionDate} 才发布，${span} 年分位中约 ${backfilled.toFixed(1)} 年是回溯模拟，那段成分结构与现在不可比`
+      );
+    }
+  }
+
+  for (const c of idx.methodologyChanges ?? []) {
+    const yearsAway = YEARS(c.date, refDate);
+    if (Math.abs(yearsAway) <= 3) {
+      if (level === 'high') level = 'medium';
+      reasons.push(`${c.date} ${yearsAway >= 0 ? '已生效' : '将生效'}的编制变更：${c.summary}`);
+    }
+  }
+
+  if (reasons.length === 0) {
+    return { level: 'high', reason: `${span} 年分位样本完整，编制方法无近期变更` };
+  }
+  return { level, reason: reasons.join('；') };
+}
+
 
 export function etfThreeLayer(e: Etf, idx: EtfIndex | undefined): LayerResult[] {
   const out: LayerResult[] = [];
@@ -672,25 +734,40 @@ export function etfThreeLayer(e: Etf, idx: EtfIndex | undefined): LayerResult[] 
     const p = indexPercentile(idx);
     let state: CheckState;
     let headline: string;
+    let detail: string;
     if (!p) {
       state = 'fail';
       headline = '底层指数缺估值分位';
-    } else if (p.value <= 35) {
-      state = 'pass';
-      headline = `${idx!.name} ${p.basis} ${p.value.toFixed(0)}，偏便宜`;
-    } else if (p.value <= 65) {
-      state = 'partial';
-      headline = `${idx!.name} ${p.basis} ${p.value.toFixed(0)}，中性`;
+      detail = idx?.peCaveat ?? '未取得该指数的口径说明';
     } else {
-      state = 'fail';
-      headline = `${idx!.name} ${p.basis} ${p.value.toFixed(0)}，偏贵`;
+      const rel = percentileReliability(idx, p.window, idx!.asOf);
+      const tagText =
+        rel && rel.level !== 'high' ? `（分位可信度${rel.level === 'low' ? '低' : '中'}）` : '';
+      if (p.value <= 35) {
+        /* 分位通过但样本不可比：只能算 partial。这不是「不知道」，是「知道它不可比」——
+           两者在页面上必须区分，否则会把「样本有问题」当成「数据缺失」，用户会以为补上数据就能解决 */
+        if (rel?.level === 'low') {
+          state = 'partial';
+          headline = `${idx!.name} ${p.basis} ${p.value.toFixed(0)} 通过，但分位样本不可比${tagText}`;
+        } else {
+          state = 'pass';
+          headline = `${idx!.name} ${p.basis} ${p.value.toFixed(0)}，偏便宜${tagText}`;
+        }
+      } else if (p.value <= 65) {
+        state = 'partial';
+        headline = `${idx!.name} ${p.basis} ${p.value.toFixed(0)}，中性${tagText}`;
+      } else {
+        state = 'fail';
+        headline = `${idx!.name} ${p.basis} ${p.value.toFixed(0)}，偏贵${tagText}`;
+      }
+      detail = [rel?.reason, idx?.peCaveat].filter(Boolean).join('｜');
     }
     out.push({
       layer: 2,
       name: '估值层：底层指数分位',
       state,
       headline,
-      detail: idx?.peCaveat ?? '未取得该指数的口径说明',
+      detail,
     });
   }
 

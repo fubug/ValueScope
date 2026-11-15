@@ -217,6 +217,39 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     </ul>
   </div>
 
+  <div class="card" style="margin-top:14px;border-left:2px solid var(--expensive)">
+    <h3 style="margin-top:0">分位可信度：便宜需要「和自己比」的前提</h3>
+    <p class="muted" style="margin-top:0">
+      恒生科技暴露了 ETF 估值层的一个盲区：PE 十年分位 18.5%，看起来几乎是最便宜的宽基之一——
+      但这个指数 2020-07 才发布，十年分位里有 5.5 年是回溯模拟；而且 2026-12-07 成分股要从 30 只扩到 50 只、选股规则整体更换，
+      变更前后不是同一个指数。两个因素叠加，这条「十年分位」不能作为便宜的证据。
+    </p>
+    <div class="small" style="background:var(--panel-2);padding:10px 12px;border-radius:4px;line-height:1.8">
+      <strong>规则化处理（已写进代码，不是备注）：</strong><br />
+      指数填了 <span class="mono">inceptionDate</span> 且发布时间不足所用分位窗口的一半 → 校验直接报错
+      「这个分位不可能是真实统计出来的」；<br />
+      发布不足分位窗口但超过一半 → 必须在 <span class="mono">peCaveat</span> 里说明哪一段是回溯模拟，否则校验失败；<br />
+      存在 3 年内的编制变更 → 分位可信度降为「中」，页面标注；两者叠加 → 估值层即使分位通过也只判「部分通过」，
+      整体结论卡在需观察，不会因为「看起来便宜」就放行。
+    </div>
+    <p class="small dim" style="margin:10px 0 0">
+      这条规则与个股的「确定性分级」同源：<strong>证据的强度决定结论的上限</strong>。
+      分位通过但样本不可比，不等于「不知道」，等于「知道它不可比」——页面上必须区分这两者，
+      否则读者会以为补一次数据就能解决，而实际上要等指数结构稳定（恒科的新序列要 12-07 生效后才开始积累）。
+    </p>
+  </div>
+
+  <div class="card" style="margin-top:14px;border-left:2px solid var(--expensive)">
+    <h3 style="margin-top:0">QDII 假折价：净值滞后制造的捡钱错觉</h3>
+    <p class="muted" style="margin-top:0">
+      行情软件显示恒生科技 ETF「折价 2.3%」，算式是「当日价格 ÷ 最新公布净值 − 1」。
+      但 QDII 净值 T+1 才确认——港股当天涨 5%、价格跟上了、净值还停在昨天，除出来就是两三个点的不存在折价。
+      同一天 513180 的两个口径：价格÷净值 = −2.34%，交易所 IOPV = −0.27%，差 2 个百分点。
+      <strong>QDII 的折溢价只能看 IOPV，不能看价格÷净值。</strong>
+      面板对这类产品宁可标「待核」也不填一个会误导人的数字，页面的成本层因此标「部分」——那是数据配不上，不是工具坏了。
+    </p>
+  </div>
+
   <div class="section-head"><h2>六、数据来源（{data.meta.snapshot} 快照）</h2></div>
   <div class="card">
     <ul class="clean" style="padding-left:20px">
