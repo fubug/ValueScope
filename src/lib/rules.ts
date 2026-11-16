@@ -943,8 +943,27 @@ export type Subscription = 'open' | 'limited' | 'suspended';
 export interface EtfIndex {
   id: string;
   name: string;
-  code: string;
+  /** 指数/合约代码。商品现货填交易所合约代码；拿不到可靠代码时不填并留 sources 说明 */
+  code: string | null;
   currency: string;
+  /** 底层资产类别。默认 equity；commodity（黄金现货等）没有盈利与净资产，估值层整套不适用 */
+  assetClass?: 'equity' | 'commodity';
+  /**
+   * 商品型资产档案。2026-11 加黄金时新增：黄金没有 PE/PB/ROE，
+   * 但它有替代判据——持有它的机会成本（实际利率/美元）与结构性买盘（央行购金/ETF 流入）。
+   * 只列事实与方向，不打分：任何「黄金内在价值 = X 元」的公式都是编的。
+   */
+  commodity?: {
+    /** 当前驱动主变量，如「美联储利率路径与美元」 */
+    driver: string;
+    /** 压制因子（当前成立的方向性事实） */
+    suppress: string[];
+    /** 支撑因子（当前成立的方向性事实） */
+    support: string[];
+    /** 52 周区间内的位置描述，如「接近年内低点」 */
+    cyclePosition: string;
+    note?: string;
+  } | null;
   pe: number | null;
   pePct: { y3?: number | null; y5?: number | null; y10?: number | null };
   pb: number | null;
@@ -1581,7 +1600,9 @@ export function toolAssessment(e: Etf, peers?: Etf[], refDate?: string): ToolAss
     headline =
       fr === 'unknown'
         ? `费率未取得，成交 ${e.turnover ?? '—'} 亿——无法判断是否落后`
-        : `费率 ${e.fee.total}%，高于同指数最低 ${peer?.min}% 但差距未达相对锚，成交 ${e.turnover ?? '—'} 亿`;
+        : fr === 'only'
+          ? `费率 ${e.fee.total}%（同指数仅此一只，无同类可比），成交 ${e.turnover ?? '—'} 亿`
+          : `费率 ${e.fee.total}%，高于同指数最低 ${peer?.min}% 但差距未达相对锚，成交 ${e.turnover ?? '—'} 亿`;
   } else {
     if (fr === 'high' && liq === 'thin') {
       headline = `费率 ${e.fee.total}% 是同指数最低 ${peer?.min}% 的 ${peer?.ratio.toFixed(1)} 倍，成交仅 ${e.turnover} 亿`;
@@ -1759,10 +1780,44 @@ export function entryAssessment(idx: EtfIndex | undefined): EntryAssessment {
   if (!idx) {
     return { grade: 'unclear', kind: 'none', percentile: null, reliability: null, blocks: ['缺底层指数'], notes: [], cycle: null, headline: '无底层指数' };
   }
+  /* 商品型资产（黄金现货等）：没有盈利与净资产，PE/PB/ROE/分位整套工具不适用。
+     黄金的价值不来自现金流折现——它不付息、不分红，持有回报 = 金价涨幅 − 保管成本。
+     给它一个 PE 分位反而制造伪精确。这里只列方向性驱动，不给档位。 */
+  if (idx.assetClass === 'commodity') {
+    const c = idx.commodity;
+    return {
+      grade: 'unclear',
+      kind: 'none',
+      percentile: null,
+      reliability: null,
+      blocks: ['商品没有盈利与净资产，PE/PB 估值工具不适用——方向只能由宏观驱动决定，面板不打分'],
+      notes: c
+        ? [
+            `驱动主变量：${c.driver}`,
+            `当前位置：${c.cyclePosition}`,
+            ...c.suppress.map((s) => `压制·${s}`),
+            ...c.support.map((s) => `支撑·${s}`),
+            ...(c.note ? [c.note] : []),
+          ]
+        : [],
+      cycle: null,
+      headline: '商品无估值锚——不给档位，方向看宏观驱动',
+    };
+  }
   const v = indexValuation(idx);
   if (!v) {
-    const why = typeof idx.pe === 'number' && idx.pe <= 0 ? '指数整体亏损且无 PB 分位可用' : '缺估值分位';
-    return { grade: 'unclear', kind: 'none', percentile: null, reliability: null, blocks: [why], notes: [], cycle: null, headline: why };
+    const why =
+      typeof idx.pe === 'number' && idx.pe <= 0
+        ? '指数整体亏损且无 PB 分位可用'
+        : idx.pe != null
+          ? `有 PE 现值 ${idx.pe} 但缺长期分位序列——没有历史分布就无法落档`
+          : '缺估值分位';
+    const notes: string[] = [];
+    if (idx.cycle) {
+      notes.push(`${idx.cycle.indicator} ${idx.cycle.value}${idx.cycle.unit}（截至 ${idx.cycle.asOf}）${idx.cycle.note ? '：' + idx.cycle.note : ''}`);
+    }
+    if (idx.cyclical?.note) notes.push(idx.cyclical.note);
+    return { grade: 'unclear', kind: 'none', percentile: null, reliability: null, blocks: [why], notes, cycle: null, headline: why };
   }
   const rel = percentileReliability(idx, v.window, idx.asOf);
   const blocks: string[] = [];

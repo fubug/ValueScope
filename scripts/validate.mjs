@@ -321,18 +321,31 @@ const etfs = read('data/etfs.json');
     if (!i.id) errors.push(`${tag} 缺少 id`);
     if (indexIds.has(i.id)) errors.push(`${tag} id 重复`);
     indexIds.add(i.id);
-    if (!i.name || !i.code) errors.push(`${tag} 缺少 name/code`);
-
-    /* 数据缺口必须显式声明。2026-11 加中证智选船舶产业（932420）时遇到：
-       指数 2025 年才发布、样本 40 只，拿不到可信的 PE/PB 分位序列。
-       「编一个 asOf」和「留空但说明」之间，后者才是诚实的——但留空不能是
-       忘记填，所以必须写 dataGap 讲清缺什么、为什么缺。 */
+    /* 数据缺口必须显式声明（同下方的分位校验）：拿不到就说明，不编造。 */
     const hasGap = typeof i.dataGap === 'string' && i.dataGap.length >= 20;
     if (!i.asOf && !hasGap) errors.push(`${tag} 缺少 asOf——估值分位必须标时点（若确实无数据请填 dataGap 说明）`);
 
-    const hasPct = ['y3', 'y5', 'y10'].some((w) => typeof i.pePct?.[w] === 'number');
-    if (!hasPct && !hasGap) {
-      errors.push(`${tag} 没有任何 PE 分位，ETF 的「估值层」会直接判不合格（若确实无数据请填 dataGap 说明）`);
+    /* 商品型资产（黄金现货等）：assetClass='commodity' 时估值层整套不适用，
+       校验随之切换——它不该有分位数据（有反而是伪精确），但必须有驱动档案。 */
+    const isCommodity = i.assetClass === 'commodity';
+    const codeExplained = typeof i.peCaveat === 'string' && i.peCaveat.includes('code') || hasGap;
+    if (!i.name) errors.push(`${tag} 缺少 name`);
+    if (!i.code && !codeExplained) errors.push(`${tag} 缺少 code——若确实未从可靠来源确认，请在 peCaveat 或 dataGap 中说明，不填推测值`);
+
+    if (isCommodity) {
+      const hasAnyPct = ['y3', 'y5', 'y10'].some((w) => typeof i.pePct?.[w] === 'number' || typeof i.pbPct?.[w] === 'number');
+      if (hasAnyPct) errors.push(`${tag} 商品型资产不应有 PE/PB 分位数据——商品没有盈利与净资产，分位是伪精确`);
+      if (!i.commodity || !Array.isArray(i.commodity.suppress) || !Array.isArray(i.commodity.support)) {
+        errors.push(`${tag} 商品型资产必须有 commodity 驱动档案（suppress/support 两列方向性事实）`);
+      } else if (i.commodity.suppress.length === 0 || i.commodity.support.length === 0) {
+        errors.push(`${tag} commodity 档案 suppress/support 都不能为空——单边叙事不是驱动分析`);
+      }
+      if (typeof i.pe === 'number' && i.pe > 0) warnings.push(`${tag} 商品型资产填了正数 PE ${i.pe}——确认不是误填股票字段`);
+    } else {
+      const hasPct = ['y3', 'y5', 'y10'].some((w) => typeof i.pePct?.[w] === 'number');
+      if (!hasPct && !hasGap) {
+        errors.push(`${tag} 没有任何 PE 分位，ETF 的「估值层」会直接判不合格（若确实无数据请填 dataGap 说明）`);
+      }
     }
     for (const w of ['y3', 'y5', 'y10']) {
       const v = i.pePct?.[w];
@@ -659,6 +672,20 @@ const etfs = read('data/etfs.json');
     // 3. 有 cycle 但没声明 cyclical → 有景气数据却不参与判定，等于摆设
     if (i.cycle && (!cyc || cyc.level === 'none')) {
       warnings.push(`${tag} 有 cycle 景气指标但未声明 cyclical，该数据不参与任何判定`);
+    }
+
+    // 3.5 zone 的标定基准必须说清楚。2026-11 加黄金产业指数时遇到：金价已回撤 35%
+    //    （价格视角是「低位」），但矿企利润仍在历史峰值（盈利视角是「高位」）——
+    //    zone 填 low 还是 high 结论完全相反。zone 必须按「分母（盈利）的周期」定标，
+    //    若取价格视角，必须在 note 里写明，否则两种读法会被混用。
+    if (i.cycle && (i.cycle.zone === 'low' || i.cycle.zone === 'trough') && i.pe != null) {
+      const pctLow = ['y3', 'y5', 'y10'].some((w) => typeof i.pePct?.[w] === 'number' && i.pePct[w] <= 35);
+      if (pctLow) {
+        const explained = (i.cycle.note?.length ?? 0) >= 40;
+        const msg = `${tag} cycle.zone=${i.cycle.zone} 但 PE 分位 ≤35——若 zone 取的是价格视角而盈利仍在高位，这是「顶部低 PE」假象，请改按盈利周期定标或在 note 说明`;
+        if (!explained) errors.push(msg);
+        else warnings.push(`${msg}（已在 note 说明）`);
+      }
     }
 
     // 4. 周期顶/底 + 分位给出方向时必须被判 unclear —— 这是 cycleGuard 的核心承诺

@@ -141,6 +141,48 @@ const pctColor = (x: number) =>
       </div>
       {/* 周期位置：强周期行业里「现在在哪」比「贵不贵」更要紧，
           同一只指数在周期顶与底的合理 PB 可以差一倍 */}
+      {/* 商品驱动档案：黄金等商品没有估值锚，方向只能由压制/支撑两列事实决定 */}
+      {idx?.assetClass === 'commodity' && idx?.commodity && (
+        <div
+          class="small"
+          style="margin:12px 0 0;padding:10px 12px;background:rgba(255,255,255,.02);border-radius:6px;line-height:1.8"
+        >
+          <div>
+            <span class="dim">商品驱动 · </span>
+            {idx.commodity.driver}
+          </div>
+          <div class="mono dim" style="font-size:11.5px;margin-top:3px">
+            {idx.commodity.cyclePosition}
+          </div>
+          {idx.commodity.suppress.length > 0 && (
+            <div style="margin-top:8px">
+              <div class="dim" style="margin-bottom:3px">压制（当前成立）：</div>
+              {idx.commodity.suppress.map((s) => (
+                <div style="color:var(--expensive)">↓ {s}</div>
+              ))}
+            </div>
+          )}
+          {idx.commodity.support.length > 0 && (
+            <div style="margin-top:8px">
+              <div class="dim" style="margin-bottom:3px">支撑（当前成立）：</div>
+              {idx.commodity.support.map((s) => (
+                <div style="color:var(--cheap)">↑ {s}</div>
+              ))}
+            </div>
+          )}
+          {idx.commodity.note && <div class="dim" style="margin-top:8px">{idx.commodity.note}</div>}
+        </div>
+      )}
+      {/* 数据缺口声明：无数据必须显式呈现，不能静默略过 */}
+      {idx?.dataGap && (
+        <div
+          class="small"
+          style="margin:12px 0 0;padding:10px 12px;background:rgba(255,255,255,.02);border-left:3px solid var(--muted);border-radius:0 6px 6px 0;line-height:1.8"
+        >
+          <span class="dim">数据缺口 · </span>
+          {idx.dataGap}
+        </div>
+      )}
       {idx?.cycle && (
         <div
           class="small"
@@ -204,9 +246,12 @@ const pctColor = (x: number) =>
           {entry.blocks.filter((b) => b !== entry.headline).map((b) => (
             <div>· {b}</div>
           ))}
-          {entry.notes.map((n) => (
-            <div class="dim" style="margin-top:6px">※ {n}</div>
-          ))}
+          {/* headline 已包含第一条理由时不重复渲染，避免同一句话出现两遍。
+              notes 的内容若已由上方专门区块（商品驱动档案 / 周期位置）渲染过，
+              这里不再重复——同一句话在一张卡片里出现两遍会互相稀释。 */}
+          {!(idx?.assetClass === 'commodity' && idx?.commodity) &&
+            !(idx?.cycle && (idx.cycle.note || idx.cyclical?.note)) &&
+            entry.notes.map((n) => <div class="dim" style="margin-top:6px">※ {n}</div>)}
           <div class="dim" style="margin-top:6px">
             这不是「数据没取到」，是「取到了但没有唯一读法」——补数据解决不了，只能等结构自己稳下来。
           </div>
