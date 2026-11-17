@@ -1,7 +1,7 @@
 {
  "meta": {
-  "snapshot": "2026-11-16",
-  "note": "十只均为完整深度调研，无示例数据：贵州茅台（600519）、东鹏饮料（605499）、美的集团（000333）、中国平安（601318）、宁德时代（300750）、宇通客车（600066）、安琪酵母（600298）、招商银行（600036）、伊利股份（600887，11-16 新增）、爱尔眼科（300015，11-16 新增）。数据截至 2026 年三季报与 2026-11-16 收盘（全部 9 只按当日收盘价重算 PE/PB/股息率）。排序规则：状态 → 安全边际。",
+  "snapshot": "2026-11-17",
+  "note": "十只均为完整深度调研，无示例数据：贵州茅台（600519）、东鹏饮料（605499）、美的集团（000333）、中国平安（601318）、宁德时代（300750）、宇通客车（600066）、安琪酵母（600298）、招商银行（600036）、伊利股份（600887，11-16 新增）、爱尔眼科（300015，11-16 新增）。数据截至 2026 年三季报与 2026-11-17 收盘（全部 10 只按当日收盘价重算 PE/PB/股息率）。排序规则：状态 → 安全边际。",
   "riskFree": {
    "value": 1.6,
    "label": "中国 10 年期国债",
@@ -14,12 +14,12 @@
    "name": "贵州茅台",
    "exchange": "SH",
    "sector": "食品饮料",
-   "price": 1453.9,
-   "priceAsOf": "2026-11-16",
+   "price": 1457.7,
+   "priceAsOf": "2026-11-17",
    "valuation": {
-    "peTtm": 22.12,
-    "pb": 6.7,
-    "dividendYield": 3.58
+    "peTtm": 22.18,
+    "pb": 6.72,
+    "dividendYield": 3.57
    },
    "fairValue": {
     "low": 1200,
@@ -198,12 +198,12 @@
    "name": "东鹏饮料",
    "exchange": "SH",
    "sector": "食品饮料",
-   "price": 115.5,
-   "priceAsOf": "2026-11-16",
+   "price": 117.0,
+   "priceAsOf": "2026-11-17",
    "valuation": {
-    "peTtm": 17.67,
-    "pb": 4.57,
-    "dividendYield": 4.27
+    "peTtm": 17.9,
+    "pb": 4.63,
+    "dividendYield": 4.22
    },
    "fairValue": {
     "low": 78,
@@ -415,12 +415,12 @@
    "name": "美的集团",
    "exchange": "SZ",
    "sector": "家用电器",
-   "price": 92.68,
-   "priceAsOf": "2026-11-16",
+   "price": 93.33,
+   "priceAsOf": "2026-11-17",
    "valuation": {
-    "peTtm": 14.91,
-    "pb": 3.17,
-    "dividendYield": 4.64
+    "peTtm": 15.01,
+    "pb": 3.19,
+    "dividendYield": 4.61
    },
    "fairValue": {
     "low": 70,
@@ -641,7 +641,7 @@
    "exchange": "SH",
    "sector": "保险",
    "price": 54.65,
-   "priceAsOf": "2026-11-16",
+   "priceAsOf": "2026-11-17",
    "valuation": {
     "peTtm": 9.73,
     "pb": 0.95,
@@ -867,12 +867,12 @@
    "name": "宇通客车",
    "exchange": "SH",
    "sector": "汽车 / 客车",
-   "price": 31.76,
-   "priceAsOf": "2026-11-16",
+   "price": 31.64,
+   "priceAsOf": "2026-11-17",
    "valuation": {
-    "peTtm": 12.91,
-    "pb": 4.93,
-    "dividendYield": 6.3
+    "peTtm": 12.86,
+    "pb": 4.91,
+    "dividendYield": 6.32
    },
    "fairValue": {
     "low": 24,
@@ -1111,12 +1111,12 @@
    "name": "宁德时代",
    "exchange": "SZ",
    "sector": "电池 / 锂电",
-   "price": 240.5,
-   "priceAsOf": "2026-11-16",
+   "price": 238.5,
+   "priceAsOf": "2026-11-17",
    "valuation": {
-    "peTtm": 12.69,
-    "pb": 2.9,
-    "dividendYield": 3.44
+    "peTtm": 12.58,
+    "pb": 2.88,
+    "dividendYield": 3.47
    },
    "fairValue": {
     "low": 200,
@@ -1336,10 +1336,10 @@
    "name": "安琪酵母",
    "exchange": "SH",
    "sector": "食品饮料",
-   "price": 37.98,
-   "priceAsOf": "2026-11-16",
+   "price": 38.01,
+   "priceAsOf": "2026-11-17",
    "valuation": {
-    "peTtm": 20.61,
+    "peTtm": 20.63,
     "pb": 2.58,
     "dividendYield": 1.45
    },
@@ -1377,12 +1377,12 @@
    "name": "招商银行",
    "exchange": "SH",
    "sector": "银行",
-   "price": 43.4,
-   "priceAsOf": "2026-11-16",
+   "price": 43.45,
+   "priceAsOf": "2026-11-17",
    "valuation": {
-    "peTtm": 7.1,
+    "peTtm": 7.11,
     "pb": 0.93,
-    "dividendYield": 4.66
+    "dividendYield": 4.65
    },
    "fairValue": {
     "low": 40,
@@ -1417,12 +1417,12 @@
    "name": "伊利股份",
    "exchange": "SH",
    "sector": "食品饮料",
-   "price": 32.2,
-   "priceAsOf": "2026-11-16",
+   "price": 32.41,
+   "priceAsOf": "2026-11-17",
    "valuation": {
-    "peTtm": 20.49,
-    "pb": 3.58,
-    "dividendYield": 4.29
+    "peTtm": 20.62,
+    "pb": 3.6,
+    "dividendYield": 4.26
    },
    "fairValue": {
     "low": 26,
@@ -1458,12 +1458,12 @@
    "name": "爱尔眼科",
    "exchange": "SZ",
    "sector": "医药生物",
-   "price": 8.99,
-   "priceAsOf": "2026-11-16",
+   "price": 9.15,
+   "priceAsOf": "2026-11-17",
    "valuation": {
-    "peTtm": 34.43,
-    "pb": 3.74,
-    "dividendYield": 2.0
+    "peTtm": 35.04,
+    "pb": 3.81,
+    "dividendYield": 1.97
    },
    "fairValue": {
     "low": 7.2,
