@@ -14,12 +14,12 @@
    "name": "贵州茅台",
    "exchange": "SH",
    "sector": "食品饮料",
-   "price": 1432.54,
+   "price": 1485.75,
    "priceAsOf": "2026-11-20",
    "valuation": {
-    "peTtm": 21.8,
-    "pb": 6.6,
-    "dividendYield": 3.63
+    "peTtm": 22.61,
+    "pb": 6.85,
+    "dividendYield": 3.5
    },
    "fairValue": {
     "low": 1200,
@@ -198,12 +198,12 @@
    "name": "东鹏饮料",
    "exchange": "SH",
    "sector": "食品饮料",
-   "price": 112.7,
+   "price": 113.55,
    "priceAsOf": "2026-11-20",
    "valuation": {
-    "peTtm": 17.24,
-    "pb": 4.46,
-    "dividendYield": 4.38
+    "peTtm": 17.37,
+    "pb": 4.49,
+    "dividendYield": 4.35
    },
    "fairValue": {
     "low": 78,
@@ -415,12 +415,12 @@
    "name": "美的集团",
    "exchange": "SZ",
    "sector": "家用电器",
-   "price": 94.18,
+   "price": 94.82,
    "priceAsOf": "2026-11-20",
    "valuation": {
-    "peTtm": 15.15,
-    "pb": 3.22,
-    "dividendYield": 4.57
+    "peTtm": 15.25,
+    "pb": 3.24,
+    "dividendYield": 4.54
    },
    "fairValue": {
     "low": 70,
@@ -640,12 +640,12 @@
    "name": "中国平安",
    "exchange": "SH",
    "sector": "保险",
-   "price": 53.63,
+   "price": 55.46,
    "priceAsOf": "2026-11-20",
    "valuation": {
-    "peTtm": 9.55,
-    "pb": 0.93,
-    "dividendYield": 5.1
+    "peTtm": 9.88,
+    "pb": 0.96,
+    "dividendYield": 4.93
    },
    "fairValue": {
     "low": 55,
@@ -867,12 +867,12 @@
    "name": "宇通客车",
    "exchange": "SH",
    "sector": "汽车 / 客车",
-   "price": 31.84,
+   "price": 32.81,
    "priceAsOf": "2026-11-20",
    "valuation": {
-    "peTtm": 12.94,
-    "pb": 4.94,
-    "dividendYield": 6.28
+    "peTtm": 13.33,
+    "pb": 5.09,
+    "dividendYield": 6.09
    },
    "fairValue": {
     "low": 24,
@@ -1111,12 +1111,12 @@
    "name": "宁德时代",
    "exchange": "SZ",
    "sector": "电池 / 锂电",
-   "price": 226.86,
+   "price": 227.78,
    "priceAsOf": "2026-11-20",
    "valuation": {
-    "peTtm": 11.97,
-    "pb": 2.74,
-    "dividendYield": 3.65
+    "peTtm": 12.02,
+    "pb": 2.75,
+    "dividendYield": 3.64
    },
    "fairValue": {
     "low": 200,
@@ -1336,12 +1336,12 @@
    "name": "安琪酵母",
    "exchange": "SH",
    "sector": "食品饮料",
-   "price": 38.01,
+   "price": 38.35,
    "priceAsOf": "2026-11-20",
    "valuation": {
-    "peTtm": 20.63,
-    "pb": 2.58,
-    "dividendYield": 1.45
+    "peTtm": 20.81,
+    "pb": 2.6,
+    "dividendYield": 1.44
    },
    "fairValue": {
     "low": 27,
@@ -1377,12 +1377,12 @@
    "name": "招商银行",
    "exchange": "SH",
    "sector": "银行",
-   "price": 42.95,
+   "price": 44.0,
    "priceAsOf": "2026-11-20",
    "valuation": {
-    "peTtm": 7.03,
-    "pb": 0.92,
-    "dividendYield": 4.7
+    "peTtm": 7.2,
+    "pb": 0.94,
+    "dividendYield": 4.59
    },
    "fairValue": {
     "low": 40,
@@ -1417,12 +1417,12 @@
    "name": "伊利股份",
    "exchange": "SH",
    "sector": "食品饮料",
-   "price": 32.74,
+   "price": 33.35,
    "priceAsOf": "2026-11-20",
    "valuation": {
-    "peTtm": 20.83,
-    "pb": 3.64,
-    "dividendYield": 4.22
+    "peTtm": 21.22,
+    "pb": 3.71,
+    "dividendYield": 4.14
    },
    "fairValue": {
     "low": 26,
@@ -1458,11 +1458,11 @@
    "name": "爱尔眼科",
    "exchange": "SZ",
    "sector": "医药生物",
-   "price": 8.93,
+   "price": 8.95,
    "priceAsOf": "2026-11-20",
    "valuation": {
-    "peTtm": 34.2,
-    "pb": 3.72,
+    "peTtm": 34.28,
+    "pb": 3.73,
     "dividendYield": 2.02
    },
    "fairValue": {
@@ -1499,10 +1499,10 @@
    "name": "腾讯控股",
    "exchange": "HK",
    "sector": "互联网科技",
-   "price": 343.6,
+   "price": 344.0,
    "priceAsOf": "2026-11-20",
    "valuation": {
-    "peTtm": 12.55,
+    "peTtm": 12.56,
     "pb": 2.41,
     "dividendYield": 1.55
    },
@@ -1582,12 +1582,12 @@
    "name": "东阿阿胶",
    "exchange": "SZ",
    "sector": "医药生物",
-   "price": 52.33,
+   "price": 52.18,
    "priceAsOf": "2026-11-20",
    "valuation": {
-    "peTtm": 18.66,
-    "pb": 3.42,
-    "dividendYield": 5.38
+    "peTtm": 18.61,
+    "pb": 3.41,
+    "dividendYield": 5.4
    },
    "fairValue": {
     "low": 47,
