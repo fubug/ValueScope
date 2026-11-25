@@ -14,8 +14,8 @@
       "name": "贵州茅台",
       "exchange": "SH",
       "sector": "食品饮料",
-      "price": 1444.84,
-      "priceAsOf": "2026-11-20",
+      "price": 1474.84,
+      "priceAsOf": "2026-11-25",
       "valuation": {
         "peTtm": 22.61,
         "pb": 6.85,
@@ -192,15 +192,15 @@
         "condition": "毛利率跌破 87%，或 2027Q1 净利同比转负超 5%，或飞天散瓶批价跌破 1600 元",
         "observation": "毛利率 89.6%（同比 -1.7pct），批价 1700–1750 元，离 87% 还有 2.6pct 缓冲"
       },
-      "priceDate": "2026-11-23"
+      "priceDate": "2026-11-25"
     },
     {
       "ticker": "605499",
       "name": "东鹏饮料",
       "exchange": "SH",
       "sector": "食品饮料",
-      "price": 111.8,
-      "priceAsOf": "2026-11-20",
+      "price": 110.89,
+      "priceAsOf": "2026-11-25",
       "valuation": {
         "peTtm": 17.37,
         "pb": 4.49,
@@ -410,15 +410,15 @@
         "condition": "东鹏特饮单季营收连续两季负增长，或期间费用率同比上行超 2pct",
         "observation": "Q3 东鹏特饮 38.43 亿、同比 -8.56%（近年首季负增长）；费用率 20.2%、同比 +2.36pct —— 两条同时成立"
       },
-      "priceDate": "2026-11-23"
+      "priceDate": "2026-11-25"
     },
     {
       "ticker": "000333",
       "name": "美的集团",
       "exchange": "SZ",
       "sector": "家用电器",
-      "price": 93.91,
-      "priceAsOf": "2026-11-20",
+      "price": 94.14,
+      "priceAsOf": "2026-11-25",
       "valuation": {
         "peTtm": 15.25,
         "pb": 3.24,
@@ -636,15 +636,15 @@
         "condition": "核心净利（剔除一次性收益与汇兑错位）连续两季同比下滑超 5%",
         "observation": "核心净利约 369 亿、同比 -0.5%，是零增长不是下滑；2027 年失去 126 亿一次性收益后需重算分母"
       },
-      "priceDate": "2026-11-23"
+      "priceDate": "2026-11-25"
     },
     {
       "ticker": "601318",
       "name": "中国平安",
       "exchange": "SH",
       "sector": "保险",
-      "price": 54.18,
-      "priceAsOf": "2026-11-20",
+      "price": 54.88,
+      "priceAsOf": "2026-11-25",
       "valuation": {
         "peTtm": 9.88,
         "pb": 0.96,
@@ -864,15 +864,15 @@
         "condition": "NBV 连续两季负增长且同业正增长，或净投资收益率年化跌破 3%",
         "observation": "Q3 NBV 单季 -54.1%、前三季 -13.3%，同期国寿 +13.1%、新华正增长 —— 同业分化已成立，不能全归因于基数"
       },
-      "priceDate": "2026-11-23"
+      "priceDate": "2026-11-25"
     },
     {
       "ticker": "600066",
       "name": "宇通客车",
       "exchange": "SH",
       "sector": "汽车 / 客车",
-      "price": 31.81,
-      "priceAsOf": "2026-11-20",
+      "price": 32,
+      "priceAsOf": "2026-11-25",
       "valuation": {
         "peTtm": 13.33,
         "pb": 5.09,
@@ -1109,7 +1109,7 @@
         "condition": "毛利率跌破 24%，或出口退税下调致 2027 年盈利下滑超 10%",
         "observation": "毛利率 25.27%、Q3 26.73%，离 24% 有 1.3pct 缓冲；退税 2027-04 由 13% 降至 9%，UBS 测算影响约 -5%"
       },
-      "priceDate": "2026-11-23"
+      "priceDate": "2026-11-25"
     },
     {
       "ticker": "300750",
@@ -1477,8 +1477,8 @@
       "name": "安琪酵母",
       "exchange": "SH",
       "sector": "食品饮料",
-      "price": 37.91,
-      "priceAsOf": "2026-11-20",
+      "price": 38.16,
+      "priceAsOf": "2026-11-25",
       "valuation": {
         "peTtm": 20.81,
         "pb": 2.6,
@@ -1512,15 +1512,15 @@
       ],
       "lastReviewed": "2026-11-15",
       "sample": false,
-      "priceDate": "2026-11-23"
+      "priceDate": "2026-11-25"
     },
     {
       "ticker": "600036",
       "name": "招商银行",
       "exchange": "SH",
       "sector": "银行",
-      "price": 43.66,
-      "priceAsOf": "2026-11-20",
+      "price": 43.2,
+      "priceAsOf": "2026-11-25",
       "valuation": {
         "peTtm": 7.2,
         "pb": 0.94,
@@ -1553,15 +1553,15 @@
       ],
       "lastReviewed": "2026-11-15",
       "sample": false,
-      "priceDate": "2026-11-23"
+      "priceDate": "2026-11-25"
     },
     {
       "ticker": "600887",
       "name": "伊利股份",
       "exchange": "SH",
       "sector": "食品饮料",
-      "price": 32.87,
-      "priceAsOf": "2026-11-20",
+      "price": 33.58,
+      "priceAsOf": "2026-11-25",
       "valuation": {
         "peTtm": 21.22,
         "pb": 3.71,
@@ -1595,15 +1595,15 @@
       ],
       "lastReviewed": "2026-11-16",
       "sample": false,
-      "priceDate": "2026-11-23"
+      "priceDate": "2026-11-25"
     },
     {
       "ticker": "300015",
       "name": "爱尔眼科",
       "exchange": "SZ",
       "sector": "医药生物",
-      "price": 8.85,
-      "priceAsOf": "2026-11-20",
+      "price": 8.78,
+      "priceAsOf": "2026-11-25",
       "valuation": {
         "peTtm": 34.28,
         "pb": 3.73,
@@ -1637,15 +1637,15 @@
       ],
       "lastReviewed": "2026-11-16",
       "sample": false,
-      "priceDate": "2026-11-23"
+      "priceDate": "2026-11-25"
     },
     {
       "ticker": "00700",
       "name": "腾讯控股",
       "exchange": "HK",
       "sector": "互联网科技",
-      "price": 337.8,
-      "priceAsOf": "2026-11-20",
+      "price": 336.4,
+      "priceAsOf": "2026-11-25",
       "valuation": {
         "peTtm": 12.56,
         "pb": 2.41,
@@ -1680,15 +1680,15 @@
       ],
       "lastReviewed": "2026-11-19",
       "sample": false,
-      "priceDate": "2026-11-23"
+      "priceDate": "2026-11-25"
     },
     {
       "ticker": "600285",
       "name": "羚锐制药",
       "exchange": "SH",
       "sector": "医药生物",
-      "price": 23.68,
-      "priceAsOf": "2026-11-20",
+      "price": 24.26,
+      "priceAsOf": "2026-11-25",
       "valuation": {
         "peTtm": 16.45,
         "pb": 3.94,
@@ -1722,15 +1722,15 @@
       ],
       "lastReviewed": "2026-11-19",
       "sample": false,
-      "priceDate": "2026-11-23"
+      "priceDate": "2026-11-25"
     },
     {
       "ticker": "000423",
       "name": "东阿阿胶",
       "exchange": "SZ",
       "sector": "医药生物",
-      "price": 51.42,
-      "priceAsOf": "2026-11-20",
+      "price": 51.9,
+      "priceAsOf": "2026-11-25",
       "valuation": {
         "peTtm": 18.61,
         "pb": 3.41,
@@ -1764,15 +1764,15 @@
       ],
       "lastReviewed": "2026-11-19",
       "sample": false,
-      "priceDate": "2026-11-23"
+      "priceDate": "2026-11-25"
     },
     {
       "ticker": "601088",
       "name": "中国神华",
       "exchange": "SH",
       "sector": "煤炭/能源",
-      "price": 51.32,
-      "priceAsOf": "2026-11-20",
+      "price": 51.82,
+      "priceAsOf": "2026-11-25",
       "valuation": {
         "peTtm": 20.71,
         "pb": 2.54,
@@ -1806,7 +1806,7 @@
       ],
       "lastReviewed": "2026-11-22",
       "sample": false,
-      "priceDate": "2026-11-23"
+      "priceDate": "2026-11-25"
     }
   ]
 }
